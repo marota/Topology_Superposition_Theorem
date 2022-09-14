@@ -1,0 +1,5 @@
+grid2op
+lightsim2grid
+matplotlib
+numpy==1.21.5
+cvxpy

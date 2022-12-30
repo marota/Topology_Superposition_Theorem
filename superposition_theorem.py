@@ -49,7 +49,25 @@ def get_Flows_NPlusK(p_init,A,ilds,p_ilds_connect):
         por_connected-=A[ilds[i]]*por_virtual_ilds[i]
         
     return por_connected
-        
+ 
+    
+
+def get_Approx_Virtual_Flows_NK(por_init,A,idls,niter):
+    pl_virtuals=np.array([por_init[id_l] for id_l in idls])
+    
+    residuals=np.array([np.sum([por_init[id_lj]*A[id_lj][id_l] for id_lj in idls if id_lj!=id_l] ) for id_l in idls])
+    pl_virtuals+=residuals
+
+    
+    for i in range(niter):
+        residuals=np.array([np.sum([residuals[j]*A[id_lj][id_l] for j,id_lj in enumerate(idls)
+                                    if id_lj!=id_l] ) for id_l in idls])
+        print(residuals)
+        pl_virtuals+=residuals
+
+    return pl_virtuals #[28.426771, 7.6831803, 27.362656]
+
+get_Approx_Virtual_Flows_NK(por_init,A,ids_l,niter=10)
     
 #a reccursive approximation without solving equations
 def get_Virtual_Flows_reccursion_approx_NK(por_init,A,idls,iter=10):

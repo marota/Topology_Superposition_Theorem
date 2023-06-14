@@ -14,6 +14,116 @@ from lightsim2grid import LightSimBackend
 #LODF1->3*por_Lconnected_l1+(LODF1->3*LODF2->1-LODF2->3)*DeltaPVirtual_l2+(LODF1->3*LODF3->1-1)*DeltaPVirtual_l3=0
 
 #a generic version for n-K
+
+#def get_betas_coeff_reconnect(id_l1,id_l2,env):
+def get_betas_coeff_N_reconnect_ultimate(delta_theta_connect_idls,delta_theta_obs_start,p_or_connect_idls,p_or_obs_start,delta_theta_obs_target=None,p_or_obs_target=None,idls=None):
+    
+    """
+        Compute the coefficients to apply the superposition theorem with each unitary action of kind "reconnect"
+
+        Parameters
+        ----------
+        idls: :class:`list`, dtype:pair(int,int)
+            List of grid lines or "virtual" lines corresponding to the elements on which each unitary action intervenes. 
+            The pair is the ids of each extremity node
+        delta_theta_connect_idls: :class:`numpy.ndarray`, dtype:float64
+            array of dim n_unitary_actions*n_unitary_actions. For each observation of unitary action intervention, 
+            it records the delta theta elemnts of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        delta_theta_obs_start: :class:`numpy.ndarray`, dtype:float64
+             array of dim n_unitary_actions. For the base observation without any action, 
+             it records the delta theta elements of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        p_or_connect_idls: :class:`numpy.ndarray`, dtype:float64
+            array of dim n_unitary_actions*n_unitary_actions. For each observation of unitary action intervention,
+            it records the p_or elements of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        p_or_obs_start: :class:`numpy.ndarray`, dtype:float64
+            array of dim n_unitary_actions. For the base observation without any action, 
+            it records the p_or elements of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        delta_theta_obs_target: :class:`numpy.ndarray`, dtype:float64
+            array of dim n_unitary_actions. If computed for live assert of proper computation, for the target observation with all combined actions,
+            it records the delta theta elements of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        p_or_obs_target: :class:`numpy.ndarray`, dtype:float64`
+            array of dim n_unitary_actions. If computed for live assert of proper computation, for the target observation with all combined actions,
+            it records the p_or elements of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        
+        Returns
+        -------
+        betas: :class:`numpy.ndarray`, dtype:float64
+            the superposition theorem coefficient value to assign to each observation of unitary action intervention 
+            
+        """
+
+    
+    
+    if (p_or_obs_target is not None) and (delta_theta_obs_target is not None):
+        #expected_betas=[obs_target.p_or[id_l]/obs_connect_idls[i].p_or[id_l] for i,id_l in enumerate(idls)]
+        #expected_betas=[get_delta_theta_line(obs_target,id_l)/get_delta_theta_line(obs_connect_idls[i],id_l) for i,id_l in enumerate(idls)]
+        expected_betas=[p_or_obs_target[i]/p_or_connect_idls[i][i] if ((p_or_connect_idls[i][i]!=0) and (p_or_obs_target[i])) else
+                        delta_theta_obs_target[i]/delta_theta_connect_idls[i][i] for i,id_l in enumerate(idls)]
+        print("expected_betas :"+str(expected_betas))
+    
+
+    n_lines_connect=len(idls)
+    a=np.zeros((n_lines_connect,n_lines_connect))
+    b=np.zeros(n_lines_connect)
+    
+    #    a=[[1,1-get_delta_theta_line(obs_disconnect_l1,id_l1)/get_delta_theta_line(obs_disconnected_l1_l2,id_l1)],
+    #    [1-get_delta_theta_line(obs_disconnect_l2,id_l2)/get_delta_theta_line(obs_disconnected_l1_l2,id_l2),1]
+    #]
+    a=np.array([[1-p_or_connect_idls[i][j]/p_or_obs_start[j] if ((p_or_connect_idls[i][j]!=0) and (p_or_obs_start[j])) else
+        1-delta_theta_connect_idls[i][j]/delta_theta_obs_start[j]\
+        for i in range(len(idls))] for j in range(len(idls))])
+    
+    np.fill_diagonal(a, 1)
+       
+    b=np.ones(n_lines_connect)
+    
+        
+    print(a)
+    print(b)
+
+    betas=np.linalg.solve(a,b)
+    
+    print("computed betas: "+str(betas))
+    
+    return betas
+    
+def get_betas_coeff_N_reconnect_disconnect_ultimate(delta_theta_connect_idls,delta_theta_obs_start,p_or_connect_idls,p_or_obs_start,delta_theta_obs_target=None,p_or_obs_target=None,idls=None):
+        """
+        Compute the coefficients to apply the superposition theorem with each considered unitary action of kind either "reconnect" or "disconnect"
+
+        Parameters
+        ----------
+        idls: :class:`list`, dtype:pair(int,int)
+            List of grid lines or "virtual" lines corresponding to the elements on which each unitary action intervenes. 
+            The pair is the ids of each extremity node
+        delta_theta_connect_idls: :class:`numpy.ndarray`, dtype:float64
+            array of dim n_unitary_actions*n_unitary_actions. For each observation of unitary action intervention, 
+            it records the delta theta elemnts of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        delta_theta_obs_start: :class:`numpy.ndarray`, dtype:float64
+             array of dim n_unitary_actions. For the base observation without any action, 
+             it records the delta theta elements of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        p_or_connect_idls: :class:`numpy.ndarray`, dtype:float64
+            array of dim n_unitary_actions*n_unitary_actions. For each observation of unitary action intervention,
+            it records the p_or elements of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        p_or_obs_start: :class:`numpy.ndarray`, dtype:float64
+            array of dim n_unitary_actions. For the base observation without any action, 
+            it records the p_or elements of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        delta_theta_obs_target: :class:`numpy.ndarray`, dtype:float64
+            array of dim n_unitary_actions. If computed for live assert of proper computation, for the target observation with all combined actions,
+            it records the delta theta elements of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        p_or_obs_target: :class:`numpy.ndarray`, dtype:float64`
+            array of dim n_unitary_actions. If computed for live assert of proper computation, for the target observation with all combined actions,
+            it records the p_or elements of every grid lines or "virtual lines" on which any considered unitary action could intervene
+        
+        Returns
+        -------
+        betas: :class:`numpy.ndarray`, dtype:float64
+            the superposition theorem coefficient value to assign to each observation of unitary action intervention 
+            
+        """
+        return get_betas_coeff_N_reconnect_ultimate(delta_theta_connect_idls,delta_theta_obs_start,p_or_connect_idls,p_or_obs_start,delta_theta_obs_target,p_or_obs_target,idls)
+    
+
 def get_DeltaVirtual_Flows_NK(il_connect,p_il_connect,A,ilds):
     
     
@@ -321,5 +431,6 @@ def get_betas_coeff_N_reconnect(idls,obs_connect_idls,obs_start,obs_target=None)
     print("computed betas: "+str(betas))
     return betas
     
-    
+def get_betas_coeff_N_reconnect_disconnect(idls,obs_connect_idls,obs_start,obs_target=None):
+    return get_betas_coeff_N_reconnect(idls,obs_connect_idls,obs_start,obs_target)  
 

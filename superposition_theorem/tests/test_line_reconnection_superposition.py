@@ -5,7 +5,7 @@ import unittest
 import grid2op
 from grid2op.Parameters import Parameters
 
-from superposition_theorem import get_virtual_line_flow, get_sub_node1_idsflow, compute_flows_superposition_theorem, get_delta_theta_line
+from superposition_theorem.core.superposition_theorem import get_virtual_line_flow, get_sub_node1_idsflow, compute_flows_superposition_theorem, get_delta_theta_line
 
 class TestLineReconnectionSup(unittest.TestCase):
 

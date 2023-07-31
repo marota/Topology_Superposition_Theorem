@@ -6,7 +6,7 @@ import grid2op
 from grid2op.Parameters import Parameters
 from lightsim2grid import LightSimBackend
 
-from superposition_theorem import get_virtual_line_flow, get_sub_node1_idsflow, compute_flows_superposition_theorem, get_delta_theta_sub_2nodes
+from superposition_theorem.core.superposition_theorem import get_virtual_line_flow, get_sub_node1_idsflow, compute_flows_superposition_theorem, get_delta_theta_sub_2nodes
 
 class TestNodeMergingSup(unittest.TestCase):
 

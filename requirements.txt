@@ -1,5 +1,2 @@
-grid2op
-lightsim2grid
-matplotlib
-numpy==1.21.5
-cvxpy
+grid2op==1.9.3
+lightsim2grid==0.7.3

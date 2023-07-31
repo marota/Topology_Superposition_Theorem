@@ -8,7 +8,7 @@ from lightsim2grid import LightSimBackend
 
 from superposition_theorem import get_virtual_line_flow, get_sub_node1_idsflow, compute_flows_superposition_theorem, get_delta_theta_sub_2nodes
 
-class TestNodeSplittingSup(unittest.TestCase):
+class TestNodeMergingSup(unittest.TestCase):
 
     def setUp(self) -> None:
         env_name = "l2rpn_case14_sandbox"

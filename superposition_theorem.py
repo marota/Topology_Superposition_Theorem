@@ -55,9 +55,9 @@ def compute_flows_superposition_theorem(idls_lines, idls_subs, obs_start, unitar
     # unit_act_observations
     delta_theta_unit_act_lines = np.array(
         [[get_delta_theta_line(obs_connect_idl, id_lj) for id_lj in idls_lines] for obs_connect_idl in
-         unit_act_observations[0:n_line_actions]])
+         unit_act_observations])#[0:n_line_actions]])
     p_or_unit_act_lines = np.array([[obs_connect_idl.p_or[id_lj] for id_lj in idls_lines] for obs_connect_idl in
-                                    unit_act_observations[0:n_line_actions]])
+                                    unit_act_observations])#[0:n_line_actions]])
 
     # obs_start
     delta_theta_obs_start_lines = np.array([get_delta_theta_line(obs_start, id_lj) for id_lj in idls_lines])
@@ -157,7 +157,7 @@ def expand_por_lines_with_sub_virtual_line_flow(idls_subs, unit_act_observations
     if p_or_unit_act_lines is None or len(p_or_unit_act_lines) == 0:
         p_or_unit_act_lines = [[] for i in range(len(unit_act_observations))]
 
-    p_or_unit_act_lines_subs = p_or_unit_act_lines
+    p_or_unit_act_lines_subs = [[] for i in range(len(unit_act_observations))]
 
     # a) compute indices of node1 for each sub of interest
 
@@ -169,10 +169,13 @@ def expand_por_lines_with_sub_virtual_line_flow(idls_subs, unit_act_observations
         ind_subs.append((ind_load_node1, ind_prod_node1, ind_lor_node1, ind_lex_node1))
 
     # b) compute flow of virtual line for each obs and sub
+    n_subs_action = len(idls_subs)
+    n_lines_action = len(unit_act_observations) - n_subs_action
+
     for j, obs in enumerate(unit_act_observations):
         p_or_v_lines = []
         for i, sub in enumerate(idls_subs):
-            if i == j:
+            if i + n_lines_action == j:
                 if is_start_reference_sub_topo[i]: #a node splitting action at this substation was applied
                     v_flow = 0.
                 else: #a node merging action at this substation was applied
@@ -186,7 +189,7 @@ def expand_por_lines_with_sub_virtual_line_flow(idls_subs, unit_act_observations
                     v_flow = 0.
 
             p_or_v_lines.append(v_flow)
-        p_or_unit_act_lines_subs[j] += p_or_v_lines
+        p_or_unit_act_lines_subs[j] = np.append(p_or_unit_act_lines[j], p_or_v_lines)
 
     # c) compute for obs start
     if p_or_obs_start_lines is None:
@@ -236,16 +239,18 @@ def expand_por_lines_with_sub_virtual_line_delta_theta(idls_subs, unit_act_obser
     if delta_theta_unit_act_lines is None or len(delta_theta_unit_act_lines) == 0:
         delta_theta_unit_act_lines = [[] for i in range(len(unit_act_observations))]
 
-    delta_theta_unit_act_lines_subs = delta_theta_unit_act_lines
+    delta_theta_unit_act_lines_subs = [[] for i in range(len(unit_act_observations))]#delta_theta_unit_act_lines
 
     # TO DO: we assume we go from reference fully meshed topology to a 2 nodes topology
     # should be able to deal with the reverse case, and to deal with 2 nodes to 2 nodes
 
+    n_subs_action = len(idls_subs)
+    n_lines_action = len(unit_act_observations) - n_subs_action
     # compute delta theta of virtual line for each obs and sub. Only non null when the split node action is done at sub
     for j, obs in enumerate(unit_act_observations):
         delta_theta_v_lines = []
         for i, sub in enumerate(idls_subs):
-            if i == j:  # this is when the unitary action is done at this sub
+            if i + n_lines_action == j:  # this is when the unitary action is done at this sub
                 if is_start_reference_sub_topo[i]:
                     delta_theta = get_delta_theta_sub_2nodes(obs,sub)#a node splitting action at this substation was applied
                 else:
@@ -257,7 +262,7 @@ def expand_por_lines_with_sub_virtual_line_delta_theta(idls_subs, unit_act_obser
                     delta_theta = get_delta_theta_sub_2nodes(obs, sub) #an action was applied at a different substation and this substation is still splitted into two nodes
             delta_theta_v_lines.append(delta_theta)
 
-        delta_theta_unit_act_lines_subs[j] += delta_theta_v_lines
+        delta_theta_unit_act_lines_subs[j] = np.append(delta_theta_unit_act_lines[j],delta_theta_v_lines)
 
     # obs_start
     delta_theta_start=np.array([0. if is_start_reference_sub_topo[i] else get_delta_theta_sub_2nodes(obs_start,sub) for i,sub in enumerate(idls_subs) ])
@@ -590,6 +595,11 @@ def get_delta_theta_line(obs,id_line):
     sub_l_or=obs.line_or_to_subid[id_line]
     bus_ex=obs.line_ex_bus[id_line]
     bus_or=obs.line_or_bus[id_line]
+
+    if bus_ex == -1:
+        bus_ex = 1 #the bus on which the line will get reconnected
+    if bus_or == -1:
+        bus_or = 1 #the bus on which the line will get reconnected
     
     theta_or_l=get_theta_node(obs,sub_l_or,bus_or)
     theta_ex_l=get_theta_node(obs,sub_l_ex,bus_ex)

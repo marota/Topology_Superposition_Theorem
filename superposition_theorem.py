@@ -16,6 +16,251 @@ from lightsim2grid import LightSimBackend
 #a generic version for n-K
 
 #def get_betas_coeff_reconnect(id_l1,id_l2,env):
+
+def compute_flows_superposition_theorem(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target=False,
+                                        decimal_digit_precision=4):
+    """
+    Compute the power flows of the combined unitary actions using the superposition theorem of unitary action observations only
+    Parameters
+        ----------
+        idls_lines: `list`:int
+            List of grid lines ids corresponding to the elements on which each unitary action intervenesif relevant. Can be empty
+
+        idls_subs: `list`:int
+            List of substation ids corresponding to the elements on which each unitary action intervenes if relevant. Can be empty
+
+        obs_start: `list`:grid2op.Action
+            List of considered actions for base observation to start from
+
+        unitary_actions: `list`:grid2op.Action
+            List of considered unitary actions to apply from base observation
+
+        env: grid2op.Environment.Environment
+
+        decimal_digit_precision: expected number of decimal precision for superposition flow computation compared to load flow
+
+    """
+    n_actions = len(unitary_actions)
+    n_line_actions = len(idls_lines)
+    n_sub_actions = len(idls_subs)
+    # check_ids_cinconsistencies=[((idls_lines[i]==-1 and idls_subs[i]!=-1)or(idls_lines[i]!=-1 and idls_subs[i]==-1)) for i in range(n_actions)]
+
+    if not n_actions == n_line_actions + n_sub_actions:
+        print("There are inconsistencies in your idls: should be either a sub or a line element for each indice.")
+        raise ()
+
+    # 1) first compute unit_act_observations, p_or_lines and delta_theta_lines
+    unit_act_observations = [obs_start.simulate(action, time_step=0)[0] for action in unitary_actions]
+
+    # unit_act_observations
+    delta_theta_unit_act_lines = np.array(
+        [[get_delta_theta_line(obs_connect_idl, id_lj) for id_lj in idls_lines] for obs_connect_idl in
+         unit_act_observations[0:n_line_actions]])
+    p_or_unit_act_lines = np.array([[obs_connect_idl.p_or[id_lj] for id_lj in idls_lines] for obs_connect_idl in
+                                    unit_act_observations[0:n_line_actions]])
+
+    # obs_start
+    delta_theta_obs_start_lines = np.array([get_delta_theta_line(obs_start, id_lj) for id_lj in idls_lines])
+    p_or_obs_start_lines = np.array([obs_start.p_or[id_lj] for id_lj in idls_lines])
+
+    # target_obs
+    target_obs = None
+    delta_theta_obs_target_lines = None
+    p_or_obs_target_lines = None
+
+    if (check_obs_target):
+        combined_action = unitary_actions[0]
+        for i in range(1, n_actions):
+            combined_action += unitary_actions[i]
+        target_obs, *_ = obs_start.simulate(combined_action, time_step=0)
+
+        delta_theta_obs_target_lines = np.array([get_delta_theta_line(target_obs, id_lj) for id_lj in idls_lines])
+        p_or_obs_target_lines = np.array([target_obs.p_or[id_lj] for id_lj in idls_lines])
+
+    ###############
+    # 2) expand osb_start and unit_act_observations with virtual flows
+    if n_sub_actions != 0:
+        delta_theta_unit_act_lines_subs, delta_theta_obs_start_lines_subs, delta_theta_obs_target_lines_subs = expand_por_lines_with_sub_virtual_line_delta_theta(
+            idls_subs,
+            unit_act_observations, obs_start, target_obs,
+            delta_theta_unit_act_lines, delta_theta_obs_start_lines, delta_theta_obs_target_lines)
+
+        p_or_unit_act_lines_subs, p_or_obs_start_lines_subs, p_or_obs_target_lines_subs = expand_por_lines_with_sub_virtual_line_flow(
+            idls_subs, unit_act_observations,
+            obs_start, target_obs,
+            p_or_unit_act_lines, p_or_obs_start_lines, p_or_obs_target_lines)
+    else:
+        delta_theta_unit_act_lines_subs = delta_theta_unit_act_lines
+        delta_theta_obs_start_lines_subs = delta_theta_obs_start_lines
+        delta_theta_obs_target_lines_subs = delta_theta_obs_target_lines
+
+        p_or_unit_act_lines_subs = p_or_unit_act_lines
+        p_or_obs_start_lines_subs = p_or_obs_start_lines
+        p_or_obs_target_lines_subs = p_or_obs_target_lines
+
+    # then get delta_thetas and p_or
+    # delta_theta_connect_idls_lines=np.array([[get_delta_theta_line(obs_connect_idl,id_lj) for id_lj in idls_lines] for obs_connect_idl in unit_act_observations[0:n_line_actions]])
+    # p_or_connect_idls_lines=np.array([[obs_connect_idl.p_or[id_lj] for id_lj in idls_lines] for obs_connect_idl in unit_act_observations[0:n_line_actions]])
+    #
+    #######
+    ##TO DO
+    # delta_theta_connect_idls_subs=np.array([[get_delta_theta_line(obs_connect_idl,id_lj) for id_lj in idls_subs] for obs_connect_idl in unit_act_observations[n_line_actions:]])
+    # p_or_connect_idls_subs=np.array([[obs_connect_idl.p_or[id_lj] for id_lj in idls_subs] for obs_connect_idl in unit_act_observations[n_line_actions:]])
+    #######
+    #
+    # delta_theta_connect_idls=delta_theta_connect_idls_lines#+delta_theta_connect_idls_subs
+    # p_or_connect_idls=p_or_connect_idls_lines#+p_or_connect_idls_subs
+
+    #
+
+    ######
+    # TO DO
+    # delta_theta_obs_start_subs=np.array([get_delta_theta_line(obs_start,id_lj) for id_lj in idls_lines])
+    # p_or_obs_start_subs=np.array([obs_start.p_or[id_lj] for id_lj in idls_lines])
+    #######
+    #
+    # delta_theta_obs_start=delta_theta_obs_start_lines#+delta_theta_obs_start_subs
+    # p_or_obs_start=p_or_obs_start_lines#+p_or_obs_start_subs
+
+    #
+
+    # compute the betas
+    idls = idls_lines + idls_subs
+    betas = get_betas_coeff_N_reconnect_disconnect_ultimate(delta_theta_unit_act_lines_subs,
+                                                            delta_theta_obs_start_lines_subs,
+                                                            p_or_unit_act_lines_subs, p_or_obs_start_lines_subs,
+                                                            delta_theta_obs_target_lines_subs,
+                                                            p_or_obs_target_lines_subs, idls)
+
+    # compute the resulting p_or
+    p_or_combined_action = (1 - np.sum(betas)) * obs_start.p_or
+    for i in range(n_actions):
+        p_or_combined_action += betas[i] * unit_act_observations[i].p_or
+
+    # print(p_or_combined_action)
+    # print(target_obs.p_or)
+    if (check_obs_target):
+        print("check target flows")
+        print(target_obs.p_or)
+        print(p_or_combined_action)
+        assert (np.all((np.round(target_obs.p_or - p_or_combined_action, decimal_digit_precision) == 0.0)))
+
+    return p_or_combined_action
+
+
+def expand_por_lines_with_sub_virtual_line_flow(idls_subs, unit_act_observations, obs_start, obs_target=None,
+                                                p_or_unit_act_lines=None, p_or_obs_start_lines=None,
+                                                p_or_obs_target_lines=None):
+    if p_or_unit_act_lines is None or len(p_or_unit_act_lines) == 0:
+        p_or_unit_act_lines = [[] for i in range(len(unit_act_observations))]
+
+    p_or_unit_act_lines_subs = p_or_unit_act_lines
+
+    # a) compute indices of node1 for each sub of interest
+
+    # TO DO: we assume we go from referencee fully meshed topology to a 2 nodes topology
+    # should be able to deal with the reverse case, and to deal with 2 nodes to 2 nodes
+    ind_subs = []
+    for obs, sub_id in zip(unit_act_observations[-len(idls_subs):], idls_subs):
+        (ind_load_node1, ind_prod_node1, ind_lor_node1, ind_lex_node1) = get_sub_node1_idsflow(obs, sub_id)
+        ind_subs.append((ind_load_node1, ind_prod_node1, ind_lor_node1, ind_lex_node1))
+
+    # b) compute flow of virtual line for each obs and sub
+    for j, obs in enumerate(unit_act_observations):
+        p_or_v_lines = []
+        for i, sub in enumerate(idls_subs):
+            if i == j:
+                v_flow = 0
+            else:
+                ind_load, ind_prod, ind_lor, ind_lex = ind_subs[i]
+                v_flow = get_virtual_line_flow(obs, ind_load, ind_prod, ind_lor, ind_lex)
+            p_or_v_lines.append(v_flow)
+        p_or_unit_act_lines_subs[j] += p_or_v_lines
+
+    # c) compute for obs start
+    if p_or_obs_start_lines is None:
+        p_or_obs_start_lines = []
+
+    p_or_v_lines = []
+
+    for i, sub in enumerate(idls_subs):
+        ind_load, ind_prod, ind_lor, ind_lex = ind_subs[i]
+        v_flow = get_virtual_line_flow(obs_start, ind_load, ind_prod, ind_lor, ind_lex)
+        p_or_v_lines.append(v_flow)
+
+    p_or_obs_start_lines_subs = np.append(p_or_obs_start_lines, p_or_v_lines)
+
+    # c) compute for obs target if not None
+    p_or_obs_target_lines_subs = None
+    if (obs_target):
+        if p_or_obs_target_lines is None:
+            p_or_obs_target_lines = []
+
+        p_or_v_lines = []
+
+        for i, sub in enumerate(idls_subs):
+            ind_load, ind_prod, ind_lor, ind_lex = ind_subs[i]
+            v_flow = get_virtual_line_flow(obs_target, ind_load, ind_prod, ind_lor, ind_lex)
+            p_or_v_lines.append(v_flow)
+
+        p_or_obs_target_lines_subs = np.append(p_or_obs_target_lines, p_or_v_lines)
+
+    return p_or_unit_act_lines_subs, p_or_obs_start_lines_subs, p_or_obs_target_lines_subs
+
+
+def expand_por_lines_with_sub_virtual_line_delta_theta(idls_subs, unit_act_observations, obs_start, obs_target=None,
+                                                       delta_theta_unit_act_lines=None,
+                                                       delta_theta_obs_start_lines=None,
+                                                       delta_theta_obs_target_lines=None):
+    if delta_theta_unit_act_lines is None or len(delta_theta_unit_act_lines) == 0:
+        delta_theta_unit_act_lines = [[] for i in range(len(unit_act_observations))]
+
+    delta_theta_unit_act_lines_subs = delta_theta_unit_act_lines
+
+    # TO DO: we assume we go from referencee fully meshed topology to a 2 nodes topology
+    # should be able to deal with the reverse case, and to deal with 2 nodes to 2 nodes
+
+    # compute delta theta of virtual line for each obs and sub. Only non null when the split node action is done at sub
+    for j, obs in enumerate(unit_act_observations):
+        delta_theta_v_lines = []
+        for i, sub in enumerate(idls_subs):
+            if i == j:  # this is when thee unitary action is done at this sub
+                theta_node_bus1 = get_theta_node(obs, sub_id=sub, bus=1)
+                theta_node_bus2 = get_theta_node(obs, sub_id=sub, bus=2)
+                delta_theta = theta_node_bus2 - theta_node_bus1
+            else:
+                delta_theta = 0
+            delta_theta_v_lines.append(delta_theta)
+        delta_theta_unit_act_lines_subs[j] += delta_theta_v_lines
+
+    # obs_start
+    if delta_theta_obs_start_lines is None:
+        delta_theta_obs_start_lines_subs = np.zeros(len(idls_subs))
+    else:
+        delta_theta_obs_start_lines_subs = np.append(delta_theta_obs_start_lines,
+                                                     np.zeros(
+                                                         len(idls_subs)))  # assuming fully meshed initial topology at those subs
+
+    # obs_target
+    delta_theta_obs_target_lines_subs = None
+
+    if (obs_target):
+        if delta_theta_obs_target_lines is None:
+            delta_theta_obs_target_lines = []
+
+        delta_theta_v_lines = []
+        for i, sub in enumerate(idls_subs):
+            theta_node_bus1 = get_theta_node(obs_target, sub_id=sub, bus=1)
+            theta_node_bus2 = get_theta_node(obs_target, sub_id=sub, bus=2)
+            delta_theta = theta_node_bus2 - theta_node_bus1
+
+            delta_theta_v_lines.append(delta_theta)
+
+        delta_theta_obs_target_lines_subs = np.append(delta_theta_obs_target_lines, delta_theta_v_lines)
+
+    return delta_theta_unit_act_lines_subs, delta_theta_obs_start_lines_subs, delta_theta_obs_target_lines_subs
+
+
 def get_betas_coeff_N_reconnect_ultimate(delta_theta_connect_idls,delta_theta_obs_start,p_or_connect_idls,p_or_obs_start,delta_theta_obs_target=None,p_or_obs_target=None,idls=None):
     
     """
@@ -292,13 +537,50 @@ def get_Virtual_Flows_N1_topo(por_init,por_topo,A,idl1,A_topo,ind_lor,ind_lex,su
     
     return por_virtual
 
+def get_theta_node(obs,sub_id,bus):
+    obj_to_sub=obs.get_obj_connect_to(substation_id=sub_id)
+
+    lines_or_to_sub_bus=[i for i in obj_to_sub['lines_or_id'] if obs.line_or_bus[i]==bus]
+    lines_ex_to_sub_bus=[i for i in obj_to_sub['lines_ex_id'] if obs.line_or_bus[i]==bus]
+    
+    thetas_node=np.append(obs.theta_or[lines_or_to_sub_bus],obs.theta_ex[lines_ex_to_sub_bus])
+    thetas_node=thetas_node[thetas_node!=0]
+    
+    theta_node=0.
+    if len(thetas_node)!=0:
+        theta_node=np.median(thetas_node)
+    
+    return theta_node
+
 def get_delta_theta_line(obs,id_line):
+    
+
+
+    sub_l_ex=obs.line_ex_to_subid[id_line]
+    sub_l_or=obs.line_or_to_subid[id_line]
+    bus_ex=obs.line_ex_bus[id_line]
+    bus_or=obs.line_or_bus[id_line]
+    
+    theta_or_l=get_theta_node(obs,sub_l_or,bus_or)
+    theta_ex_l=get_theta_node(obs,sub_l_ex,bus_ex)
+    
+    delta_theta_l=theta_or_l-theta_ex_l
+    
+    return delta_theta_l#/360*2*3.14159 #use PI number with enough significant digits!!
+
+
+
+def get_delta_theta_line_old(obs,id_line):
     theta_or=obs.theta_or
     theta_ex=obs.theta_ex
 
     sub_l_ex=obs.line_ex_to_subid[id_line]
     sub_l_or=obs.line_or_to_subid[id_line]
+    bus_ex=obs.line_ex_bus[id_line]
+    bus_or=obs.line_or_bus[id_line]
+    
     lines_sub_or_l=list(obs.get_obj_connect_to(substation_id=sub_l_or)['lines_or_id'])+list(obs.get_obj_connect_to(substation_id=sub_l_or)['lines_ex_id'])
+    
     lines_sub_ex_l=list(obs.get_obj_connect_to(substation_id=sub_l_ex)['lines_or_id'])+list(obs.get_obj_connect_to(substation_id=sub_l_ex)['lines_ex_id'])
 
     #print(id_line)
@@ -432,5 +714,40 @@ def get_betas_coeff_N_reconnect(idls,obs_connect_idls,obs_start,obs_target=None)
     return betas
     
 def get_betas_coeff_N_reconnect_disconnect(idls,obs_connect_idls,obs_start,obs_target=None):
-    return get_betas_coeff_N_reconnect(idls,obs_connect_idls,obs_start,obs_target)  
+    return get_betas_coeff_N_reconnect(idls,obs_connect_idls,obs_start,obs_target)
+
+
+def get_sub_node1_idsflow(obs, sub_id):
+    # flow_mat, (ind_load, ind_prod, stor, ind_lor, ind_lex)=obs.flow_bus_matrix()
+
+    ind_prod, prod_conn = obs._get_bus_id(
+        obs.gen_pos_topo_vect, obs.gen_to_subid
+    )
+    ind_load, load_conn = obs._get_bus_id(
+        obs.load_pos_topo_vect, obs.load_to_subid
+    )
+    ind_stor, stor_conn = obs._get_bus_id(
+        obs.storage_pos_topo_vect, obs.storage_to_subid
+    )
+    ind_lor, lor_conn = obs._get_bus_id(
+        obs.line_or_pos_topo_vect, obs.line_or_to_subid
+    )
+    ind_lex, lex_conn = obs._get_bus_id(
+        obs.line_ex_pos_topo_vect, obs.line_ex_to_subid
+    )
+
+    ind_lor_node1 = [i for i in range(obs.n_line) if ind_lor[i] == sub_id]
+    ind_lex_node1 = [i for i in range(obs.n_line) if ind_lex[i] == sub_id]
+    ind_load_node1 = [i for i in range(obs.n_load) if ind_load[i] == sub_id]
+    ind_prod_node1 = [i for i in range(obs.n_gen) if ind_prod[i] == sub_id]
+
+    return (ind_load_node1, ind_prod_node1, ind_lor_node1, ind_lex_node1)
+
+
+def get_virtual_line_flow(obs, ind_load, ind_prod, ind_lor, ind_lex):
+    InjectionsNode1 = np.array([-obs.p_or[i] for i in ind_lor]).sum()
+    InjectionsNode1 += np.array([obs.p_or[i] for i in ind_lex]).sum()
+    InjectionsNode1 += np.array([-obs.load_p[i] for i in ind_load]).sum()
+    InjectionsNode1 += np.array([obs.gen_p[i] for i in ind_prod]).sum()
+    return InjectionsNode1
 

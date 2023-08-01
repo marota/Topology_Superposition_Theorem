@@ -74,15 +74,11 @@ class TestNodeSplittingSup(unittest.TestCase):
         p_start_sub2 = get_virtual_line_flow(obs_start, ind_load_node1_sub2, ind_prod_node1_sub2, ind_lor_node1_sub2,
                                              ind_lex_node1_sub2)
 
-        p_obs1_sub1 = get_virtual_line_flow(obs1, ind_load_node1_sub1, ind_prod_node1_sub1, ind_lor_node1_sub1,
-                                            ind_lex_node1_sub1)
         p_obs1_sub2 = get_virtual_line_flow(obs1, ind_load_node1_sub2, ind_prod_node1_sub2, ind_lor_node1_sub2,
                                             ind_lex_node1_sub2)
 
         p_obs2_sub1 = get_virtual_line_flow(obs2, ind_load_node1_sub1, ind_prod_node1_sub1, ind_lor_node1_sub1,
                                             ind_lex_node1_sub1)
-        p_obs2_sub2 = get_virtual_line_flow(obs2, ind_load_node1_sub2, ind_prod_node1_sub2, ind_lor_node1_sub2,
-                                            ind_lex_node1_sub2)
 
         # solving the linear system by "hand" and computing the superposition
         a = np.array([[1, 1 - p_obs2_sub1 / p_start_sub1],

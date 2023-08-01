@@ -22,7 +22,7 @@ pkgs = {
 }
 
 setup(name='TopologySuperpositionTheorem',
-      version='0.0.1',
+      version='0.0.2',
       description='A package for efficient combinatorial topological actions power flow computation based on the extended superposition theorem for powersystems',
       long_description=long_description,
       long_description_content_type="text/markdown",

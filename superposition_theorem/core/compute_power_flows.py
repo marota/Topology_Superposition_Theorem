@@ -1,7 +1,7 @@
 import grid2op
 import numpy as np
 from lightsim2grid import LightSimBackend
-from superposition_theorem.core.compute_beta_coefficients import get_betas_coeff_N_reconnect_disconnect_ultimate
+from superposition_theorem.core.compute_beta_coefficients import get_betas_coeff_N_unit_acts_ultimate
 
 
 #so pVirtual_l1=por_Lconnected_l1+(DeltaPVirtual_l2*LODF2->1+DeltaPVirtual_l1*LODF3->1)
@@ -52,13 +52,21 @@ def compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_
     # 1) first compute unit_act_observations, p_or_lines and delta_theta_lines
     unit_act_observations = [obs_start.simulate(action, time_step=0)[0] for action in unitary_actions]
 
-    p_or_combined_action=compute_flows_superposition_theorem_from_unit_act_obs(idls_lines, idls_subs, obs_start, unit_act_observations,
-                                                          check_obs_target=False,
-                                                          decimal_digit_precision=4)
+    n_actions = len(unit_act_observations)
+    target_obs = None
+    if (check_obs_target):
+        combined_action = unitary_actions[0]
+        for i in range(1, n_actions):
+            combined_action += unitary_actions[i]
+        target_obs, *_ = obs_start.simulate(combined_action, time_step=0)
+
+    p_or_combined_action=compute_flows_superposition_theorem_from_unit_act_obs(idls_lines, idls_subs, obs_start,target_obs, unit_act_observations,
+                                                          check_obs_target=check_obs_target,
+                                                          decimal_digit_precision=decimal_digit_precision)
 
     return p_or_combined_action
 
-def compute_flows_superposition_theorem_from_unit_act_obs(idls_lines, idls_subs, obs_start, unit_act_observations, check_obs_target=False,
+def compute_flows_superposition_theorem_from_unit_act_obs(idls_lines, idls_subs, obs_start,target_obs, unit_act_observations, check_obs_target=False,
                                         decimal_digit_precision=4):
     """
     Compute the power flows of the combined unitary actions using the superposition theorem of unitary action observations only
@@ -108,16 +116,10 @@ def compute_flows_superposition_theorem_from_unit_act_obs(idls_lines, idls_subs,
     p_or_obs_start_lines = np.array([obs_start.p_or[id_lj] for id_lj in idls_lines])
 
     # target_obs
-    target_obs = None
     delta_theta_obs_target_lines = None
     p_or_obs_target_lines = None
 
-    if (check_obs_target):
-        combined_action = unitary_actions[0]
-        for i in range(1, n_actions):
-            combined_action += unitary_actions[i]
-        target_obs, *_ = obs_start.simulate(combined_action, time_step=0)
-
+    if check_obs_target:
         delta_theta_obs_target_lines = np.array([get_delta_theta_line(target_obs, id_lj) for id_lj in idls_lines])
         p_or_obs_target_lines = np.array([target_obs.p_or[id_lj] for id_lj in idls_lines])
 
@@ -144,7 +146,7 @@ def compute_flows_superposition_theorem_from_unit_act_obs(idls_lines, idls_subs,
 
     # compute the betas
     idls = idls_lines + idls_subs
-    betas = get_betas_coeff_N_reconnect_disconnect_ultimate(delta_theta_unit_act_lines_subs,
+    betas = get_betas_coeff_N_unit_acts_ultimate(delta_theta_unit_act_lines_subs,
                                                             delta_theta_obs_start_lines_subs,
                                                             p_or_unit_act_lines_subs, p_or_obs_start_lines_subs,
                                                             delta_theta_obs_target_lines_subs,

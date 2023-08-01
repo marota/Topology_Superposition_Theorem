@@ -6,7 +6,7 @@ import grid2op
 from grid2op.Parameters import Parameters
 from lightsim2grid import LightSimBackend
 
-from superposition_theorem.core.superposition_theorem import get_virtual_line_flow, get_sub_node1_idsflow, compute_flows_superposition_theorem, get_delta_theta_sub_2nodes
+from superposition_theorem.core.compute_power_flows import get_virtual_line_flow, get_sub_node1_idsflow, compute_flows_superposition_theorem_from_actions, get_delta_theta_sub_2nodes
 
 class TestNodeMergingSup(unittest.TestCase):
 
@@ -92,7 +92,7 @@ class TestNodeMergingSup(unittest.TestCase):
         assert (np.all((np.round(obs_target.p_or - p_target_computed,self.decimal_accuracy ) == 0.0)))
 
     def test_2_combined_actions_node_merging_sup_theorem(self):
-        """Testing the compute_flows_superposition_theorem function
+        """Testing the compute_flows_superposition_theorem_from_actions function
         in the case of a combination of two nodes merging actions at different substations"""
 
         self.env.set_id(self.chronic_id)
@@ -124,12 +124,12 @@ class TestNodeMergingSup(unittest.TestCase):
 
         # running superposition theorem function
         check_obs_target = False
-        p_target_computed = compute_flows_superposition_theorem(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target)
+        p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target)
 
         assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
 
     def test_4_combined_actions_node_merging_sup_theorem(self):
-        """Testing the compute_flows_superposition_theorem function
+        """Testing the compute_flows_superposition_theorem_from_actions function
              in the case of a combination of 4 node merging actions at 4 different substations"""
         self.env.set_id(self.chronic_id)
         self.env.reset()
@@ -171,6 +171,6 @@ class TestNodeMergingSup(unittest.TestCase):
 
         # running superposition theorem function
         check_obs_target = False
-        p_target_computed = compute_flows_superposition_theorem(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target)
+        p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target)
 
         assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))

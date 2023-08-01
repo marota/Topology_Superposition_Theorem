@@ -5,7 +5,7 @@ import unittest
 import grid2op
 from grid2op.Parameters import Parameters
 
-from superposition_theorem.core.superposition_theorem import get_virtual_line_flow, get_sub_node1_idsflow, compute_flows_superposition_theorem
+from superposition_theorem.core.compute_power_flows import get_virtual_line_flow, get_sub_node1_idsflow, compute_flows_superposition_theorem_from_actions
 
 class TestLineDisconnectionSup(unittest.TestCase):
 
@@ -68,7 +68,7 @@ class TestLineDisconnectionSup(unittest.TestCase):
         assert (np.all((np.round(obs_target.p_or - p_target_computed,self.decimal_accuracy ) == 0.0)))
 
     def test_2_combined_actions_line_disconnection_sup_theorem(self):
-        """Testing the compute_flows_superposition_theorem function
+        """Testing the compute_flows_superposition_theorem_from_actions function
         in the case of a combination of two line disconnections"""
 
         id_l1 = 3  # 1#2#3
@@ -89,12 +89,12 @@ class TestLineDisconnectionSup(unittest.TestCase):
 
         #running superposition theorem function
         check_obs_target = False
-        p_target_computed=compute_flows_superposition_theorem(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target)
+        p_target_computed=compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target)
 
         assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
 
     def test_4_combined_actions_line_disconnection_sup_theorem(self):
-        """Testing the compute_flows_superposition_theorem function
+        """Testing the compute_flows_superposition_theorem_from_actions function
         in the case of a combination of four line disconnections"""
 
         id_l1 = 1  # 3#2#3
@@ -119,6 +119,6 @@ class TestLineDisconnectionSup(unittest.TestCase):
 
         #running superposition theorem function
         check_obs_target = False
-        p_target_computed=compute_flows_superposition_theorem(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target)
+        p_target_computed=compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target)
 
         assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))

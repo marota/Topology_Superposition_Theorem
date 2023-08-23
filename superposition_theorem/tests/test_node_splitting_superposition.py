@@ -1,3 +1,11 @@
+# Copyright (c) 2019-2020, RTE (https://www.rte-france.com)
+# See AUTHORS.txt
+# This Source Code Form is subject to the terms of the Mozilla Public License, version 2.0.
+# If a copy of the Mozilla Public License, version 2.0 was not distributed with this file,
+# you can obtain one at http://mozilla.org/MPL/2.0/.
+# SPDX-License-Identifier: MPL-2.0
+# This file is part of superposition_theorem
+
 import warnings
 import numpy as np
 import unittest
@@ -5,7 +13,9 @@ import unittest
 import grid2op
 from grid2op.Parameters import Parameters
 
-from superposition_theorem.core.compute_power_flows import get_virtual_line_flow, get_sub_node1_idsflow, compute_flows_superposition_theorem_from_actions
+from superposition_theorem.core.compute_power_flows import (get_virtual_line_flow, get_sub_node1_idsflow,
+                                                            compute_flows_superposition_theorem_from_actions)
+
 
 class TestNodeSplittingSup(unittest.TestCase):
 

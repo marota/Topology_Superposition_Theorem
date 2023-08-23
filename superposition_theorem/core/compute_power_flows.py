@@ -1,6 +1,13 @@
+# Copyright (c) 2019-2020, RTE (https://www.rte-france.com)
+# See AUTHORS.txt
+# This Source Code Form is subject to the terms of the Mozilla Public License, version 2.0.
+# If a copy of the Mozilla Public License, version 2.0 was not distributed with this file,
+# you can obtain one at http://mozilla.org/MPL/2.0/.
+# SPDX-License-Identifier: MPL-2.0
+# This file is part of superposition_theorem
+
 import grid2op
 import numpy as np
-from lightsim2grid import LightSimBackend
 from superposition_theorem.core.compute_beta_coefficients import get_betas_coeff_N_unit_acts_ultimate
 
 

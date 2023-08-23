@@ -32,7 +32,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
             params.MAX_LINE_STATUS_CHANGED = 99999
             params.MAX_SUB_CHANGED = 99999
 
-            self.env = grid2op.make(env_name,backend=LightSimBackend(),param=params)
+            self.env = grid2op.make(env_name, backend=LightSimBackend(), param=params, test=True)
 
             self.env.set_max_iter(20)
         self.chronic_id = 0

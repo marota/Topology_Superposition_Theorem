@@ -28,7 +28,7 @@ class TestNodeMergingSup(unittest.TestCase):
             self.env.set_max_iter(20)
         self.chronic_id = 0
         self.max_iter = 10
-        self.decimal_accuracy = 4 #until how many decimals we check the perfect accuracy
+        self.tol = 3e-5
 
     def tearDown(self) -> None:
         self.env.close()
@@ -89,7 +89,7 @@ class TestNodeMergingSup(unittest.TestCase):
 
         p_target_computed = betas[0] * obs1.p_or + betas[1] * obs2.p_or + (1 - betas.sum()) * obs_start.p_or
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed,self.decimal_accuracy ) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_2_combined_actions_node_merging_sup_theorem(self):
         """Testing the compute_flows_superposition_theorem_from_actions function
@@ -126,7 +126,7 @@ class TestNodeMergingSup(unittest.TestCase):
         check_obs_target = False
         p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target)
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_4_combined_actions_node_merging_sup_theorem(self):
         """Testing the compute_flows_superposition_theorem_from_actions function
@@ -173,4 +173,4 @@ class TestNodeMergingSup(unittest.TestCase):
         check_obs_target = False
         p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target)
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol

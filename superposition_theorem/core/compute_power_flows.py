@@ -18,8 +18,13 @@ from superposition_theorem.core.compute_beta_coefficients import get_betas_coeff
 
 #def get_betas_coeff_reconnect(id_l1,id_l2,env):
 
-def compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target=False,
-                                        decimal_digit_precision=4):
+def compute_flows_superposition_theorem_from_actions(idls_lines,
+                                                     idls_subs,
+                                                     obs_start,
+                                                     unitary_actions,
+                                                     check_obs_target=False,
+                                                     decimal_digit_precision=4,
+                                                     verbose=False):
     """
     Compute the power flows of the combined unitary actions using the superposition theorem of unitary action observations only
 
@@ -54,20 +59,34 @@ def compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_
 
     n_actions = len(unit_act_observations)
     target_obs = None
-    if (check_obs_target):
+    
+    if check_obs_target:
         combined_action = unitary_actions[0]
         for i in range(1, n_actions):
             combined_action += unitary_actions[i]
         target_obs, *_ = obs_start.simulate(combined_action, time_step=0)
 
-    p_or_combined_action=compute_flows_superposition_theorem_from_unit_act_obs(idls_lines, idls_subs, obs_start,target_obs, unit_act_observations,
-                                                          check_obs_target=check_obs_target,
-                                                          decimal_digit_precision=decimal_digit_precision)
+    p_or_combined_action = compute_flows_superposition_theorem_from_unit_act_obs(idls_lines,
+                                                                                 idls_subs,
+                                                                                 obs_start,
+                                                                                 target_obs,
+                                                                                 unit_act_observations)
+    
+    if check_obs_target:
+        if verbose:
+            print("check target flows")
+            print(target_obs.p_or)
+            print(p_or_combined_action)
+        assert (np.all((np.round(target_obs.p_or - p_or_combined_action, decimal_digit_precision) == 0.0)))
 
     return p_or_combined_action
 
-def compute_flows_superposition_theorem_from_unit_act_obs(idls_lines, idls_subs, obs_start,target_obs, unit_act_observations, check_obs_target=False,
-                                        decimal_digit_precision=4):
+
+def compute_flows_superposition_theorem_from_unit_act_obs(idls_lines,
+                                                          idls_subs,
+                                                          obs_start,
+                                                          target_obs,
+                                                          unit_act_observations):
     """
     Compute the power flows of the combined unitary actions using the superposition theorem of unitary action observations only
 
@@ -85,10 +104,8 @@ def compute_flows_superposition_theorem_from_unit_act_obs(idls_lines, idls_subs,
     unit_act_observations: `list`:grid2op.Observation
         List of grid states on which each unitary actions have been applied independently from obs_start
 
-    check_obs_target: `Boolean`
-        To assert if the superposition theorem computation was accurate
-
-    decimal_digit_precision: expected number of decimal precision for superposition flow computation compared to load flow
+    decimal_digit_precision: 
+        expected number of decimal precision for superposition flow computation compared to load flow
 
     Returns
     -------
@@ -119,10 +136,6 @@ def compute_flows_superposition_theorem_from_unit_act_obs(idls_lines, idls_subs,
     delta_theta_obs_target_lines = None
     p_or_obs_target_lines = None
 
-    if check_obs_target:
-        delta_theta_obs_target_lines = np.array([get_delta_theta_line(target_obs, id_lj) for id_lj in idls_lines])
-        p_or_obs_target_lines = np.array([target_obs.p_or[id_lj] for id_lj in idls_lines])
-
     ###############
     # 2) expand osb_start and unit_act_observations with virtual flows
     if n_sub_actions != 0:
@@ -147,30 +160,27 @@ def compute_flows_superposition_theorem_from_unit_act_obs(idls_lines, idls_subs,
     # compute the betas
     idls = idls_lines + idls_subs
     betas = get_betas_coeff_N_unit_acts_ultimate(delta_theta_unit_act_lines_subs,
-                                                            delta_theta_obs_start_lines_subs,
-                                                            p_or_unit_act_lines_subs, p_or_obs_start_lines_subs,
-                                                            delta_theta_obs_target_lines_subs,
-                                                            p_or_obs_target_lines_subs, idls)
+                                                 delta_theta_obs_start_lines_subs,
+                                                 p_or_unit_act_lines_subs,
+                                                 p_or_obs_start_lines_subs,
+                                                 delta_theta_obs_target_lines_subs,
+                                                 p_or_obs_target_lines_subs,
+                                                 idls)
 
     # compute the resulting p_or
     p_or_combined_action = (1 - np.sum(betas)) * obs_start.p_or
     for i in range(n_actions):
         p_or_combined_action += betas[i] * unit_act_observations[i].p_or
 
-    # print(p_or_combined_action)
-    # print(target_obs.p_or)
-    if (check_obs_target):
-        print("check target flows")
-        print(target_obs.p_or)
-        print(p_or_combined_action)
-        assert (np.all((np.round(target_obs.p_or - p_or_combined_action, decimal_digit_precision) == 0.0)))
-
     return p_or_combined_action
 
 
-
-def expand_por_lines_with_sub_virtual_line_flow(idls_subs, unit_act_observations, obs_start, obs_target=None,
-                                                p_or_unit_act_lines=None, p_or_obs_start_lines=None,
+def expand_por_lines_with_sub_virtual_line_flow(idls_subs,
+                                                unit_act_observations,
+                                                obs_start,
+                                                obs_target=None,
+                                                p_or_unit_act_lines=None,
+                                                p_or_obs_start_lines=None,
                                                 p_or_obs_target_lines=None):
     """
     Compute the power flows of the virtual lines at substations for each unitary action observation and start observation.
@@ -271,7 +281,7 @@ def expand_por_lines_with_sub_virtual_line_flow(idls_subs, unit_act_observations
 
     # c) compute for obs target if not None
     p_or_obs_target_lines_subs = None
-    if (obs_target):
+    if obs_target:
         if p_or_obs_target_lines is None:
             p_or_obs_target_lines = []
 
@@ -290,7 +300,10 @@ def expand_por_lines_with_sub_virtual_line_flow(idls_subs, unit_act_observations
     return p_or_unit_act_lines_subs, p_or_obs_start_lines_subs, p_or_obs_target_lines_subs
 
 
-def expand_por_lines_with_sub_virtual_line_delta_theta(idls_subs, unit_act_observations, obs_start, obs_target=None,
+def expand_por_lines_with_sub_virtual_line_delta_theta(idls_subs,
+                                                       unit_act_observations,
+                                                       obs_start,
+                                                       obs_target=None,
                                                        delta_theta_unit_act_lines=None,
                                                        delta_theta_obs_start_lines=None,
                                                        delta_theta_obs_target_lines=None):
@@ -378,7 +391,7 @@ def expand_por_lines_with_sub_virtual_line_delta_theta(idls_subs, unit_act_obser
     # obs_target
     delta_theta_obs_target_lines_subs = None
 
-    if (obs_target):
+    if obs_target:
         if delta_theta_obs_target_lines is None:
             delta_theta_obs_target_lines = []
 
@@ -393,7 +406,7 @@ def expand_por_lines_with_sub_virtual_line_delta_theta(idls_subs, unit_act_obser
 
 
 def get_sub_node1_idsflow(obs, sub_id):
-    # flow_mat, (ind_load, ind_prod, stor, ind_lor, ind_lex)=obs.flow_bus_matrix()
+    # flow_mat, (ind_load, ind_prod, stor, ind_lor, ind_lex) = obs.flow_bus_matrix()
 
     ind_prod, prod_conn = obs._get_bus_id(
         obs.gen_pos_topo_vect, obs.gen_to_subid
@@ -463,14 +476,8 @@ def get_delta_theta_line(obs, id_line):
 
 
 def get_virtual_line_flow(obs, ind_load, ind_prod, ind_lor, ind_lex):
-    InjectionsNode1 = np.array([-obs.p_or[i] for i in ind_lor]).sum()
-    InjectionsNode1 += np.array([obs.p_or[i] for i in ind_lex]).sum()
-    InjectionsNode1 += np.array([-obs.load_p[i] for i in ind_load]).sum()
-    InjectionsNode1 += np.array([obs.gen_p[i] for i in ind_prod]).sum()
-    return InjectionsNode1
-
-
-
-
-
-
+    injectionsNode1 = np.array([-obs.p_or[i] for i in ind_lor]).sum()
+    injectionsNode1 += np.array([obs.p_or[i] for i in ind_lex]).sum()
+    injectionsNode1 += np.array([-obs.load_p[i] for i in ind_load]).sum()
+    injectionsNode1 += np.array([obs.gen_p[i] for i in ind_prod]).sum()
+    return injectionsNode1

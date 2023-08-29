@@ -9,124 +9,111 @@
 from typing import List
 import numpy as np
 
-
-class StaticGridProp(object):
-    """This class represents the description of the "static" part of a powergrid. 
-    
-    It maps every modeled elements (line / trafo, load and generator at the time of writing)
-    to the substation to which they are connected.
-    
-    This should not be modified, the grid is considered static for the superposition theorem to hold.
-    """
-    def __init__(self) -> None:
-        self.line_or_subid = []
-        self.line_ex_subid = []
-        self.load_subid = []
-        self.gen_subid = []    
-        self.storage_subid = []    
-    
-    def from_grid2op_obs(self, obs : "grid2op.Observation.BaseObservation") -> None:
-        self.line_or_subid = 1 * type(obs).line_ex_to_subid
-        self.line_ex_subid = 1 * type(obs).line_ex_to_subid
-        self.load_subid = 1 * type(obs).load_to_subid
-        self.gen_subid = 1 * type(obs).gen_to_subid
-        self.storage_subid = 1 * type(obs).storage_to_subid
-        
-        
-class CurrentState(object):
-    """This class represents the continuous part of the """   
-      
-    def __init__(self) -> None:
-        # actual state (flows, etc.)
-        self.p_or = []
-        self.p_ex = []
-        self.theta_or = []
-        self.theta_ex = []
-        self.delta_theta = []
-        
-        # actual state (topo)
-        self.line_or_bus = []
-        self.line_ex_bus = []
-        self.load_bus = []
-        self.gen_bus = []
-        self.storage_bus = []
-        
-    def from_grid2op_obs(self, obs : "grid2op.Observation.BaseObservation") -> None:
-        self.p_or = 1.0 * obs.p_or
-        self.p_ex = 1.0 * obs.p_ex
-        self.theta_or = 1.0 * obs.theta_or
-        self.theta_ex = 1.0 * obs.theta_ex
-        self.delta_theta = self.theta_or - self.theta_ex
-        
-        # actual state (topo)
-        self.line_or_bus = 1 * obs.line_or_bus
-        self.line_ex_bus = 1 * obs.line_ex_bus
-        self.load_bus = 1 * obs.load_bus
-        self.gen_bus = 1 * obs.gen_bus
-        self.storage_bus = 1 * obs.storage_bus
-        
-        
+from .staticgridprop import StaticGridProp
+from .state import CurrentState, CurrentTopo
+from .subaction import SubAction     
+            
+            
 class State(object):
-    DISCO_BUS_ID = -1
     def __init__(self) -> None:
         # grid description
         self._grid : StaticGridProp = StaticGridProp()
         
         # initial state
-        self._init_state : CurrentState = CurrentState()
+        self._init_state : CurrentState = None
+        self._init_topo : CurrentTopo = None
         
         # states after unary actions
         self._unary_states = {}
     
+    def get_emptyact(self) -> SubAction:
+        return SubAction(self._grid, self._init_state, self._init_topo)
+    
+    def _handle_unary_disc(self,
+                           line_ids_disc_unary : List[int],
+                           obs : "grid2op.Observation.BaseObservation") -> None:
+        dict_disco = {}
+        if obs._obs_env is None:
+            raise RuntimeError("You cannot build a proper Sate if the grid2op observation cannot use obs.simulate")
+        
+        for l_id in line_ids_disc_unary:
+            # simulate the unary disconnection of powerline l_id
+            obs_tmp, reward, done, info = obs.simulate(obs._obs_env.action_space({"set_line_status": [(l_id, -1)]}),
+                                                        time_step=0)
+            if not done:
+                state_tmp = CurrentState(self._grid)
+                state_tmp.from_grid2op_obs(obs_tmp)
+                dict_disco[l_id] = state_tmp
+            else:
+                raise RuntimeError(f"Impossible to disconnect powerline {l_id}: no feasible solution found.")
+        self._unary_states["line_disco"] = dict_disco
+        
+    def _handle_unary_reco(self,
+                           line_ids_reco_unary : List[int],
+                           obs : "grid2op.Observation.BaseObservation") -> None:
+        dict_reco = {}
+        if obs._obs_env is None:
+            raise RuntimeError("You cannot build a proper Sate if the grid2op observation cannot use obs.simulate")
+        
+        for l_id in line_ids_reco_unary:
+            # simulate the unary reconnection of powerline l_id
+            obs_tmp, reward, done, info = obs.simulate(obs._obs_env.action_space({"set_line_status": [(l_id, +1)]}),
+                                                       time_step=0)
+            if not done:
+                state_tmp = CurrentState(self._grid)
+                state_tmp.from_grid2op_obs(obs_tmp)
+                dict_reco[l_id] = state_tmp
+            else:
+                raise RuntimeError(f"Impossible to reconnect powerline {l_id}: no feasible solution found.")
+        self._unary_states["line_reco"] = dict_reco
+    
+    def _handle_unary_subs(self,
+                           subs_actions_unary: List[SubAction],
+                           obs : "grid2op.Observation.BaseObservation") -> None:
+        dict_sub = {}
+        if obs._obs_env is None:
+            raise RuntimeError("You cannot build a proper Sate if the grid2op observation cannot use obs.simulate")
+        for sub_repr in subs_actions_unary:
+            g2op_act = sub_repr.to_grid2op(obs._obs_env.action_space)
+            sub_hashed = hash(sub_repr)
+            obs_tmp, reward, done, info = obs.simulate(g2op_act,
+                                                       time_step=0)
+            if not done:
+                state_tmp = CurrentState(self._grid)
+                state_tmp.from_grid2op_obs(obs_tmp)
+                dict_sub[sub_hashed] = state_tmp
+            else:
+                import pdb
+                pdb.set_trace()
+                raise RuntimeError(f"Impossible modify the substation {sub_repr}: no feasible solution found.")
+            
+        self._unary_states["sub_modif"] = dict_sub
+    
     @classmethod
     def from_grid2op_obs(cls,
                          obs : "grid2op.Observation.BaseObservation",
-                         line_ids_disc_unary = (),
-                         line_ids_reco_unary = ()) -> "State":
+                         line_ids_disc_unary : List[int] = (),
+                         line_ids_reco_unary : List[int]  = (),
+                         subs_actions_unary : List[SubAction]  = ()) -> "State":
         res = cls()
         
         # grid description
         res._grid.from_grid2op_obs(obs)
         
         # actual state (flows, etc.)
+        res._init_state = CurrentState(res._grid)
         res._init_state.from_grid2op_obs(obs)
+        res._init_topo = CurrentTopo(res._grid)
+        res._init_topo.from_grid2op_obs(obs)
         
         # unary states
         res._unary_states = {}
         if line_ids_disc_unary:
-            dict_disco = {}
-            if obs._obs_env is None:
-                raise RuntimeError("You cannot build a proper Sate if the grid2op observation cannot use obs.simulate")
-            
-            for l_id in line_ids_disc_unary:
-                # simulate the unary disconnection of powerline l_id
-                obs_tmp, reward, done, info = obs.simulate(obs._obs_env.action_space({"set_line_status": [(l_id, -1)]}),
-                                                           time_step=0)
-                if not done:
-                    state_tmp = CurrentState()
-                    state_tmp.from_grid2op_obs(obs_tmp)
-                    dict_disco[l_id] = state_tmp
-                else:
-                    raise RuntimeError(f"Impossible to disconnect powerline {l_id}: no feasible solution found.")
-            res._unary_states["line_disco"] = dict_disco
-        
+            res._handle_unary_disc(line_ids_disc_unary, obs)
         if line_ids_reco_unary:
-            dict_reco = {}
-            if obs._obs_env is None:
-                raise RuntimeError("You cannot build a proper Sate if the grid2op observation cannot use obs.simulate")
-            
-            for l_id in line_ids_reco_unary:
-                # simulate the unary disconnection of powerline l_id
-                obs_tmp, reward, done, info = obs.simulate(obs._obs_env.action_space({"set_line_status": [(l_id, +1)]}),
-                                                           time_step=0)
-                if not done:
-                    state_tmp = CurrentState()
-                    state_tmp.from_grid2op_obs(obs_tmp)
-                    dict_reco[l_id] = state_tmp
-                else:
-                    raise RuntimeError(f"Impossible to disconnect powerline {l_id}: no feasible solution found.")
-            res._unary_states["line_reco"] = dict_reco
-            
+            res._handle_unary_reco(line_ids_reco_unary, obs)
+        if subs_actions_unary:
+            res._handle_unary_subs(subs_actions_unary, obs)
         return res
 
     def compute_betas_disco_lines(self, l_ids):

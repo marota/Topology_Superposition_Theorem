@@ -120,12 +120,12 @@ class SubAction(object):
         res = {}
         if (self._line_or_ex != 0).any():
             res["line"] = np.where(self._line_or_ex != 0)[0]
-        if self._load_id.size:
-            res["load"] = 1 * self._load_id
-        if self._gen_id.size:
-            res["gen"] = 1 * self._gen_id
-        if self._storage_id.size:
-            res["storage"] = 1* self._storage_id
+        if (self._load_id != 0).any():
+            res["load"] = np.where(self._load_id != 0)[0]
+        if (self._gen_id != 0).any():
+            res["gen"] = np.where(self._gen_id != 0)[0]
+        if (self._storage_id != 0).any():
+            res["storage"] = np.where(self._storage_id != 0)[0]
         return res
     
     @classmethod
@@ -147,3 +147,8 @@ class SubAction(object):
                     self.bus_after_action)
                   )
         return res
+    
+    def get_virtual_flow(self) -> float:
+        """retrieve the virtual flow of the virtual line that would exists between these two buses"""
+        flow1, flow2 =  self.ptr_current_state.get_virtual_flows()
+        return TODO

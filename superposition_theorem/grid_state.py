@@ -76,15 +76,15 @@ class State(object):
         for sub_repr in subs_actions_unary:
             g2op_act = sub_repr.to_grid2op(obs._obs_env.action_space)
             sub_hashed = hash(sub_repr)
+            # TODO for now: only bus splitting, check that in the original observation.
             obs_tmp, reward, done, info = obs.simulate(g2op_act,
                                                        time_step=0)
             if not done:
                 state_tmp = CurrentState(self._grid)
+                virtual_flow = sub_repr.get_virtual_flow()
                 state_tmp.from_grid2op_obs(obs_tmp)
-                dict_sub[sub_hashed] = state_tmp
+                dict_sub[sub_hashed] = (state_tmp, virtual_flow)
             else:
-                import pdb
-                pdb.set_trace()
                 raise RuntimeError(f"Impossible modify the substation {sub_repr}: no feasible solution found.")
             
         self._unary_states["sub_modif"] = dict_sub
@@ -136,7 +136,7 @@ class State(object):
         return res
     
     def compute_betas_reco_lines(self, l_ids, key="line_reco"):
-        # works when flow on powerline is O, but requires theta
+        # works when flow on powerline is 0, but requires theta
         por_unary = np.array([self._unary_states[key][l_id].p_or for l_id in l_ids])
         theta_unary = np.array([self._unary_states[key][l_id].delta_theta for l_id in l_ids])
         l_ids = np.array(l_ids).astype(int)

@@ -411,7 +411,6 @@ def expand_por_lines_with_sub_virtual_line_delta_theta(idls_subs,
     return delta_theta_unit_act_lines_subs, delta_theta_obs_start_lines_subs, delta_theta_obs_target_lines_subs
 
 
-
 def get_sub_node1_idsflow(obs, sub_id):
     # flow_mat, (ind_load, ind_prod, stor, ind_lor, ind_lex) = obs.flow_bus_matrix()
 

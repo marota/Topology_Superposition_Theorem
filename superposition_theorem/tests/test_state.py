@@ -3,11 +3,14 @@ import numpy as np
 from superposition_theorem import State
 import unittest
 import itertools
+import warnings
 
 
 class TestStateGrid2op(unittest.TestCase):
     def setUp(self) -> None:
-        self.env = grid2op.make("l2rpn_case14_sandbox", test=True)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            self.env = grid2op.make("l2rpn_case14_sandbox", test=True)
         param = self.env.parameters
         param.ENV_DC = True  # force the computation of the powerflow in DC mode
         param.MAX_LINE_STATUS_CHANGED = 99999
@@ -84,9 +87,76 @@ class TestStateGrid2op(unittest.TestCase):
         res_p = state.compute_flows_reco_lines(l_reco)
         real_p, *_ = start_obs.simulate(self.env.action_space({"set_line_status": [(el, +1) for el in l_reco]}), time_step=0)
         real_p = real_p.p_or
-        assert np.abs(real_p - res_p).max() <= self.tol, f"error for {np.abs(real_p - res_p).max()}"   
+        assert np.abs(real_p - res_p).max() <= self.tol, f"error for {np.abs(real_p - res_p).max()}"  
+        
+    def test_topo(self):
+        self.env.set_id(0)
+        _ = self.env.reset()
+        start_obs, *_  = self.env.step(self.env.action_space({}))
+        init_state = State.from_grid2op_obs(start_obs)
+
+        # first unary action
+        id_sub1 = 5
+        act1 = init_state.get_emptyact()
+        act1.set_subid(id_sub1)
+        act1.set_bus(lines_id=[(7, 1), (8, 1), (9, 2), (17, 2)],
+                     loads_id=[(4, 2)],
+                     gens_id=[(2, 1), (3, 2)])
+
+        # second unary action
+        id_sub2 = 4
+        act2 = init_state.get_emptyact()
+        act2.set_subid(id_sub2)
+        act2.set_bus(lines_id=[(1, 2), (4, 1), (6, 2), (17, 1)],
+                     loads_id=[(3, 2)])
+        state = State.from_grid2op_obs(start_obs, subs_actions_unary=[act1, act2])
+        res_p = state.compute_flows_node_split([act1, act2])
+        real_obs, *_ = start_obs.simulate(act1.to_grid2op(self.env.action_space) + act2.to_grid2op(self.env.action_space),
+                                          time_step=0)
+        real_p = real_obs.p_or
+        assert np.abs(real_p - res_p).max() <= self.tol, f"error for {np.abs(real_p - res_p).max()}"  
             
+    def test_3topo(self):
+        self.env.set_id(0)
+        _ = self.env.reset()
+        start_obs, *_  = self.env.step(self.env.action_space({}))
+        init_state = State.from_grid2op_obs(start_obs)
+
+        # first unary action
+        id_sub1 = 5
+        act1 = init_state.get_emptyact()
+        act1.set_subid(id_sub1)
+        act1.set_bus(lines_id=[(7, 1), (8, 1), (9, 2), (17, 2)],
+                     loads_id=[(4, 2)],
+                     gens_id=[(2, 1), (3, 2)])
+
+        # second unary action
+        id_sub2 = 4
+        act2 = init_state.get_emptyact()
+        act2.set_subid(id_sub2)
+        act2.set_bus(lines_id=[(1, 2), (4, 1), (6, 2), (17, 1)],
+                     loads_id=[(3, 2)])
+        
+        # third unary action
+        id_sub3 = 1
+        act3 = init_state.get_emptyact()
+        act3.set_subid(id_sub3)
+        act3.set_bus(lines_id=[(0, 2), (2, 1), (3, 2), (4, 1)],
+                     loads_id=[(0, 2)],
+                     gens_id=[(0, 1)])
+        
+        # now compute flows
+        state = State.from_grid2op_obs(start_obs, subs_actions_unary=[act1, act2, act3])
+        res_p = state.compute_flows_node_split([act1, act2, act3])
+        real_obs, *_ = start_obs.simulate(act1.to_grid2op(self.env.action_space) + 
+                                          act2.to_grid2op(self.env.action_space) + 
+                                          act3.to_grid2op(self.env.action_space),
+                                          time_step=0)
+        real_p = real_obs.p_or
+        assert np.abs(real_p - res_p).max() <= self.tol, f"error for {np.abs(real_p - res_p).max()}"  
             
+# TODO deeper tests on the Subact: check illegal actions are catched, check that the "to_grid2op" the "sub_modif" is working etc.
+
 if __name__ == "__main__":
     unittest.main()
     

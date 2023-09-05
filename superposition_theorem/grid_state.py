@@ -80,14 +80,14 @@ class State(object):
             obs_tmp, reward, done, info = obs.simulate(g2op_act,
                                                        time_step=0)
             if not done:
+                virtual_flow = sub_repr.get_virtual_flow()  # pstart_subXXX in the notebook
                 state_tmp = CurrentState(self._grid)
-                virtual_flow = sub_repr.get_virtual_flow()
                 state_tmp.from_grid2op_obs(obs_tmp)
-                dict_sub[sub_hashed] = (state_tmp, virtual_flow)
+                dict_sub[sub_hashed] = (sub_repr, state_tmp, virtual_flow)
             else:
                 raise RuntimeError(f"Impossible modify the substation {sub_repr}: no feasible solution found.")
             
-        self._unary_states["sub_modif"] = dict_sub
+        self._unary_states["node_split"] = dict_sub
     
     @classmethod
     def from_grid2op_obs(cls,
@@ -151,6 +151,32 @@ class State(object):
     
     def compute_flows_reco_lines(self, l_ids: List) -> np.ndarray:
         por_unary, betas = self.compute_betas_reco_lines(l_ids)
+        res = (1 - betas.sum()) * self._init_state.p_or
+        res += np.matmul(betas, por_unary)    
+        return res    
+    
+    def compute_betas_node_split(self, li_sub_act, key="node_split"):
+        # works when flow on powerline is 0, but requires theta
+        li_hash = [hash(act) for act in li_sub_act]
+        A = np.zeros((len(li_sub_act), len(li_sub_act)))
+        for act_id, act_hashed in enumerate(li_hash):
+            sub_repr, state_tmp, virtual_flow = self._unary_states[key][act_hashed]
+            for act2_id, act2_hashed in enumerate(li_hash):
+                if act2_id >= act_id:
+                    continue
+                sub_repr2, state_tmp2, virtual_flow2 = self._unary_states[key][act2_hashed]
+                vflow1 = sub_repr.get_virtual_flow(state_tmp2)
+                vflow2 = sub_repr2.get_virtual_flow(state_tmp)
+                A[act_id, act2_id] = 1. - vflow1 / virtual_flow
+                A[act2_id, act_id] = 1. - vflow2 / virtual_flow2
+            
+        por_unary = np.array([self._unary_states[key][act_hashed][1].p_or for act_hashed in li_hash])
+        np.fill_diagonal(A, 1)
+        B = np.ones(len(li_sub_act))
+        return por_unary, np.linalg.solve(A, B)
+    
+    def compute_flows_node_split(self, li_sub_act: List[SubAction]) -> np.ndarray:
+        por_unary, betas = self.compute_betas_node_split(li_sub_act)
         res = (1 - betas.sum()) * self._init_state.p_or
         res += np.matmul(betas, por_unary)    
         return res

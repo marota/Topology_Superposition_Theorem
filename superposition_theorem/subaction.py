@@ -54,6 +54,8 @@ class SubAction(object):
     
     def sub_modif(self, sub_id):
         """set the id of the substation modified"""
+        if self._sub_id is not None:
+            raise RuntimeError("Impossible to set twice the substation to the same action.")
         self._sub_id = sub_id
         cls = type(self)
         
@@ -78,13 +80,13 @@ class SubAction(object):
                 raise RuntimeError(f"For {nm} {el_id}: you ask to connect it to bus {bus_id}, but its substation (id {self.sub_id}) "
                                    f"counts only {len(self.ptr_bus_subid)} busbars.")
                 
-    def _check_act(self, lines_id=None, loads_id=None, gens_id=None, sotrages_id=None) -> None:
+    def _check_act(self, lines_id=None, loads_id=None, gens_id=None, storages_id=None) -> None:
         if loads_id is not None:
             self._aux_check_act("load", loads_id, self.ptr_gridprop.load_subid)
         if gens_id is not None:
             self._aux_check_act("gen", gens_id, self.ptr_gridprop.gen_subid)
-        if sotrages_id is not None:
-            self._aux_check_act("storage", sotrages_id, self.ptr_gridprop.storage_subid)
+        if storages_id is not None:
+            self._aux_check_act("storage", storages_id, self.ptr_gridprop.storage_subid)
         if lines_id is not None:
             lines_or_id, lines_ex_id = self._aux_split_lines_id(lines_id)
             self._aux_check_act("line (or)", lines_or_id, self.ptr_gridprop.line_or_subid)
@@ -103,7 +105,7 @@ class SubAction(object):
                 storages_id : Optional[List[Tuple[int, int]]]  = None):
         if self.sub_id is None:
             raise RuntimeError("You need to set the sub id on which you want to act with `act.set_subid(...)`")
-        self._check_act()
+        self._check_act(lines_id=lines_id, loads_id=loads_id, gens_id=gens_id, storages_id=storages_id)
         lines_or_id = None
         lines_ex_id = None
         if lines_id is not None:
@@ -148,7 +150,11 @@ class SubAction(object):
                   )
         return res
     
-    def get_virtual_flow(self) -> float:
+    def get_virtual_flow(self, gridstate: Optional[CurrentState] = None ) -> float:
         """retrieve the virtual flow of the virtual line that would exists between these two buses"""
-        flow1, flow2 =  self.ptr_current_state.get_virtual_flows()
-        return TODO
+        # TODO what if more than 2 buses ? => get the split concerned and change the [0] and [1] !
+        if gridstate is None:
+            gridstate = self.ptr_current_state
+        p_bus1 = self.bus_after_action.get_p(self.ptr_gridprop.bus_subid[self.sub_id][0], gridstate)
+        # p_bus2 = self.bus_after_action.get_p(self.ptr_gridprop.bus_subid[self.sub_id][1], gridstate)
+        return p_bus1

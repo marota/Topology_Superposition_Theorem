@@ -7,6 +7,7 @@
 # This file is part of superposition_theorem
 
 import numpy as np
+from typing import Tuple
 
 from ..staticgridprop import StaticGridProp
 
@@ -37,3 +38,16 @@ class CurrentState(object):
         self.load_p : np.ndarray = 1.0 * obs.load_p
         self.gen_p : np.ndarray = 1.0 * obs.gen_p
         self.storage_p : np.ndarray = 1.0 * obs.storage_power
+        
+    def get_p(self,
+              lines_or_id : np.ndarray, 
+              lines_ex_id : np.ndarray,
+              loads_id : np.ndarray,
+              gens_id : np.ndarray,
+              storages_id) -> float:
+        res = (-self.p_or[lines_or_id].sum() 
+               -self.load_p[loads_id].sum() 
+               -self.storage_p[storages_id].sum()
+               +self.gen_p[gens_id].sum()
+               -self.p_ex[lines_ex_id].sum())
+        return res

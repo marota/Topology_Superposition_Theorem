@@ -108,3 +108,16 @@ class CurrentTopo(object):
                     tuple(self._gen_bus),
                     tuple(self._storage_bus)))
         return res
+
+    def get_p(self, bus_id : int, current_state: "superposition_theorem.state.CurrentState") -> float:
+        lor_id = np.where(np.array(self._line_or_bus) == bus_id)[0]
+        lex_id = np.where(np.array(self._line_ex_bus) == bus_id)[0]
+        load_id = np.where(np.array(self._load_bus) == bus_id)[0]
+        gen_id = np.where(np.array(self._gen_bus) == bus_id)[0]
+        sto_id = np.where(np.array(self._storage_bus) == bus_id)[0]
+        res = current_state.get_p(lines_or_id=lor_id,
+                                  lines_ex_id=lex_id,
+                                  loads_id=load_id,
+                                  gens_id=gen_id,
+                                  storages_id=sto_id)
+        return res

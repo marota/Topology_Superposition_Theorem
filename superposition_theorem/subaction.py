@@ -118,16 +118,16 @@ class SubAction(object):
                                       gens_id=gens_id,
                                       storages_id=storages_id)
             
-    def get_elem_sub(self) -> Dict[Literal["line", "load", "gen", "storage"], Set]:
+    def get_elem_sub(self) -> Dict[Literal["lines_id", "loads_id", "gens_id", "storages_id"], np.ndarray]:
         res = {}
         if (self._line_or_ex != 0).any():
-            res["line"] = np.where(self._line_or_ex != 0)[0]
+            res["lines_id"] = np.where(self._line_or_ex != 0)[0]
         if (self._load_id != 0).any():
-            res["load"] = np.where(self._load_id != 0)[0]
+            res["loads_id"] = np.where(self._load_id != 0)[0]
         if (self._gen_id != 0).any():
-            res["gen"] = np.where(self._gen_id != 0)[0]
+            res["gens_id"] = np.where(self._gen_id != 0)[0]
         if (self._storage_id != 0).any():
-            res["storage"] = np.where(self._storage_id != 0)[0]
+            res["storages_id"] = np.where(self._storage_id != 0)[0]
         return res
     
     @classmethod

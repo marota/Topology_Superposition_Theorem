@@ -154,7 +154,57 @@ class TestStateGrid2op(unittest.TestCase):
                                           time_step=0)
         real_p = real_obs.p_or
         assert np.abs(real_p - res_p).max() <= self.tol, f"error for {np.abs(real_p - res_p).max()}"  
+    
+    def test_security_analysis_onesub(self):
+        self.env.set_id(0)
+        np.random.seed(0)
+        _ = self.env.reset()
+        start_obs, *_  = self.env.step(self.env.action_space({}))
+        env = self.env
+        nb_unit_acts = 1
+        
+        state = State.from_grid2op_obs(start_obs,
+                                       line_ids_disc_unary=tuple(range(env.n_line)),
+                                       when_error="warns")
+    
+        nb_line_per_sub = np.zeros(env.n_sub)
+        for sub_id in range(env.n_sub):
+            nb_line_per_sub[sub_id] += (type(env).line_or_to_subid == sub_id).sum()
+            nb_line_per_sub[sub_id] += (type(env).line_ex_to_subid == sub_id).sum()
             
+        # takes action on the first two substation where it is possible todo make it "more random"
+        sub_ids = np.where((env.sub_info >= 4) & (nb_line_per_sub >= 2))[0][:nb_unit_acts]  
+
+        unit_acts = []
+        for sub_id in sub_ids:
+            un_act = state.get_emptyact()
+            un_act.set_subid(sub_id)
+            elems = un_act.get_elem_sub()
+            # assign a powerline per nodes at least (todo add more "randomness")
+            topo = {"lines_id" : [(l_id, lnum % 2 + 1) for lnum, l_id in enumerate(elems["lines_id"])]}
+            # randomnly assign a bus to anything else
+            for k in ["loads_id", "gens_id", "storages_id"]:
+                if k not in elems:
+                    continue
+                tmp_ = np.random.choice([1, 2], len(elems[k]))
+                topo[k] = [(el, tmp) for el, tmp in zip(elems[k], tmp_)]
+            un_act.set_bus(**topo)
+            unit_acts.append(un_act)
+        state.add_unary_actions_grid2op(start_obs, subs_actions_unary=unit_acts)
+        
+        res, total_time, nb_cont  = state.compute_flows_n1(subs_actions=unit_acts, line_ids=tuple(range(env.n_line)))
+        for l_id in range(env.n_line):
+            act = unit_acts[0].to_grid2op(self.env.action_space)
+            act._set_topo_vect[env.line_or_pos_topo_vect[l_id]] = -1
+            act._set_topo_vect[env.line_ex_pos_topo_vect[l_id]] = -1
+            sim_obs, r, done, info = start_obs.simulate(act, time_step=0)
+            if np.any(~np.isfinite(res[l_id])):
+                assert info["exception"], f'there should be an exception here for cont {l_id}'
+            else:
+                assert not info["exception"], f'Error while performing the powerflow check for cont {l_id}: {info["exception"]}'
+                assert np.abs(res[l_id] - sim_obs.p_or).max() <= self.tol, f"error for cont {l_id}: {np.abs(res[l_id] - sim_obs.p_or).max()}"  
+# TODO add deeper level of topo change there
+        
 # TODO deeper tests on the Subact: check illegal actions are catched, check that the "to_grid2op" the "sub_modif" is working etc.
 
 if __name__ == "__main__":

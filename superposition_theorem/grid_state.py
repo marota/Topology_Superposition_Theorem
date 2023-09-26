@@ -35,7 +35,7 @@ class State(object):
     def _handle_unary_disc(self,
                            line_ids_disc_unary : List[int],
                            obs : "grid2op.Observation.BaseObservation",
-                           when_error=Literal["raise", "warn"]) -> None:
+                           when_error : Literal["raise", "warn"]) -> None:
         if "line_disco" in self._unary_states:
             dict_disco = self._unary_states["line_disco"]
         else:
@@ -66,7 +66,7 @@ class State(object):
     def _handle_unary_reco(self,
                            line_ids_reco_unary : List[int],
                            obs : "grid2op.Observation.BaseObservation",
-                           when_error=Literal["raise", "warn"]) -> None:
+                           when_error : Literal["raise", "warn"]) -> None:
         if "line_reco" in self._unary_states:
             dict_reco = self._unary_states["line_reco"]
         else:
@@ -97,7 +97,7 @@ class State(object):
     def _handle_unary_subs(self,
                            subs_actions_unary: List[SubAction],
                            obs : "grid2op.Observation.BaseObservation",
-                           when_error=Literal["raise", "warn"]) -> None:
+                           when_error : Literal["raise", "warn"]) -> None:
         if "node_split" in self._unary_states:
             dict_sub = self._unary_states["node_split"]
         else:
@@ -134,7 +134,7 @@ class State(object):
                          line_ids_disc_unary : List[int] = (),
                          line_ids_reco_unary : List[int]  = (),
                          subs_actions_unary : List[SubAction]  = (),
-                         when_error=Literal["raise", "warn"]) -> "State":
+                         when_error: Literal["raise", "warn"]="raise") -> "State":
         res = cls()
         
         # grid description
@@ -298,14 +298,14 @@ class State(object):
                          *,  # force kwargs
                          subs_actions : List[SubAction]  = (),
                          line_ids : List[int] = (),
-                         ) -> np.ndarray:
+                         ) -> Dict[int, np.ndarray]:
         
         n_line = self._grid.line_or_subid.shape[0]
         n = len(subs_actions) + 1  # we do first the topo action then 1 line disconnection at a time
         A = np.zeros((n, n))
         por_unary = np.zeros((n, n_line))
         B = np.ones(n)
-        res = np.full((len(line_ids), n_line), fill_value=np.NaN)
+        res = {line_id: np.full(n_line, fill_value=np.NaN) for line_id in line_ids}
         total_time = 0.
         
         # first fill the data for the node splitting (once for all contingencies)
@@ -331,18 +331,18 @@ class State(object):
                 vflow_disc = sub_repr.get_virtual_flow(all_line_disc[line_id])
                 A[act_id, -1] = 1 - vflow_disc / virtual_flow
                 A[-1, act_id] = 1. - state_tmp.p_or[line_id] / self._init_state.p_or[line_id]
+                
             # solve the linear system
             try:
                 betas = np.linalg.solve(A, B)
             except LinAlgError:
                 # we do not count the diverging powerflows
                 continue
-            
             nb_cont += 1
             por_unary[-1, :] = all_line_disc[line_id].p_or
             # save the result
-            res[cont_id, :] = (1 - betas.sum()) * self._init_state.p_or
-            res[cont_id, :] += np.matmul(betas, por_unary)     
+            res[line_id][:] = (1 - betas.sum()) * self._init_state.p_or
+            res[line_id][:] += np.matmul(betas, por_unary)     
             total_time += time.perf_counter() - beg
                   
         return res, total_time, nb_cont  

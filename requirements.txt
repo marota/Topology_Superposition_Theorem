@@ -1,2 +1,2 @@
-grid2op==1.9.3
-lightsim2grid==0.7.3
+grid2op>=1.9.3
+lightsim2grid>=0.7.3

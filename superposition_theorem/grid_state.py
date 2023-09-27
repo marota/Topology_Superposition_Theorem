@@ -316,7 +316,30 @@ class State(object):
         np.fill_diagonal(A, 1)
         por_unary[:len(li_hash),:] = np.array([self._unary_states[key][act_hashed][1].p_or for act_hashed in li_hash])
         total_time += time.perf_counter() - beg
-        
+
+        # preparing information for reuse for all contingencies
+        sub_repr_list = []
+        state_tmp_list = []
+        virtual_flow_list = []
+        bus_asset_ids_list = []
+
+        for act_id, act_hashed in enumerate(li_hash):
+            sub_repr, state_tmp, virtual_flow = self._unary_states[key][act_hashed]
+
+            bus_id = sub_repr.sub_id  # bus 1 for sub
+            act_lor_id = np.where(np.array(sub_repr.bus_after_action._line_or_bus) == bus_id)[0]
+            act_lex_id = np.where(np.array(sub_repr.bus_after_action._line_ex_bus) == bus_id)[0]
+            act_load_id = np.where(np.array(sub_repr.bus_after_action._load_bus) == bus_id)[0]
+            act_gen_id = np.where(np.array(sub_repr.bus_after_action._gen_bus) == bus_id)[0]
+            act_sto_id = np.where(np.array(sub_repr.bus_after_action._storage_bus) == bus_id)[0]
+
+            sub_repr_list.append(sub_repr)
+            state_tmp_list.append(state_tmp)
+            virtual_flow_list.append(virtual_flow)
+            bus_asset_ids_list.append([act_lor_id, act_lex_id, act_load_id, act_gen_id, act_sto_id])
+
+        total_time += time.perf_counter() - beg
+
         # now perform the security analysis using the extend superposition theorem
         nb_cont = 0
         for cont_id, line_id in enumerate(line_ids):
@@ -327,17 +350,19 @@ class State(object):
             beg = time.perf_counter()
             # update the A matrix
             for act_id, act_hashed in enumerate(li_hash):
-                sub_repr, state_tmp, virtual_flow = self._unary_states[key][act_hashed]
-                vflow_disc = sub_repr.get_virtual_flow(all_line_disc[line_id])
-                A[act_id, -1] = 1 - vflow_disc / virtual_flow
-                A[-1, act_id] = 1. - state_tmp.p_or[line_id] / self._init_state.p_or[line_id]
+                # sub_repr, state_tmp, virtual_flow = self._unary_states[key][act_hashed] # Precompute this before once for all
+                # vflow_disc = sub_repr.get_virtual_flow(all_line_disc[line_id])
+                vflow_disc = sub_repr.get_virtual_flow(all_line_disc[line_id], asset_ids=bus_asset_ids_list[
+                    act_id])  # asset_ids=[act_lor_id, act_lex_id,act_load_id, act_gen_id, act_sto_id])
+                A[act_id, -1] = 1 - vflow_disc / virtual_flow_list[act_id]
+                A[-1, act_id] = 1. - state_tmp_list[act_id].p_or[line_id] / self._init_state.p_or[line_id]
             # solve the linear system
             try:
                 betas = np.linalg.solve(A, B)
             except LinAlgError:
                 # we do not count the diverging powerflows
                 continue
-            
+
             nb_cont += 1
             por_unary[-1, :] = all_line_disc[line_id].p_or
             # save the result
@@ -355,4 +380,3 @@ class State(object):
     @classmethod
     def from_pypowsybl_grid(cls, grid) -> "State":
         raise NotImplementedError("TODO")
-    

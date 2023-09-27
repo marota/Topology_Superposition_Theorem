@@ -150,11 +150,16 @@ class SubAction(object):
                   )
         return res
     
-    def get_virtual_flow(self, gridstate: Optional[CurrentState] = None ) -> float:
+    def get_virtual_flow(self, gridstate: Optional[CurrentState] = None, asset_ids : Optional[List[np.ndarray]] = None ) -> float:
         """retrieve the virtual flow of the virtual line that would exists between these two buses"""
         # TODO what if more than 2 buses ? => get the split concerned and change the [0] and [1] !
         if gridstate is None:
             gridstate = self.ptr_current_state
-        p_bus1 = self.bus_after_action.get_p(self.ptr_gridprop.bus_subid[self.sub_id][0], gridstate)
+        if asset_ids is None:
+            p_bus1 = self.bus_after_action.get_p(self.ptr_gridprop.bus_subid[self.sub_id][0], gridstate)
+        else:
+            [lor_id,lex_id,load_id,gen_id,sto_id]=asset_ids
+            p_bus1 = gridstate.get_p(lor_id, lex_id, load_id, gen_id, sto_id)
+        #p_bus1 = gridstate.get_p(lor_id,lex_id,load_id,gen_id,sto_id)#self.bus_after_action.get_p(self.ptr_gridprop.bus_subid[self.sub_id][0], gridstate)
         # p_bus2 = self.bus_after_action.get_p(self.ptr_gridprop.bus_subid[self.sub_id][1], gridstate)
         return p_bus1

@@ -1,3 +1,11 @@
+# Copyright (c) 2019-2020, RTE (https://www.rte-france.com)
+# See AUTHORS.txt
+# This Source Code Form is subject to the terms of the Mozilla Public License, version 2.0.
+# If a copy of the Mozilla Public License, version 2.0 was not distributed with this file,
+# you can obtain one at http://mozilla.org/MPL/2.0/.
+# SPDX-License-Identifier: MPL-2.0
+# This file is part of superposition_theorem
+
 import warnings
 import numpy as np
 import unittest
@@ -24,12 +32,12 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
             params.MAX_LINE_STATUS_CHANGED = 99999
             params.MAX_SUB_CHANGED = 99999
 
-            self.env = grid2op.make(env_name,backend=LightSimBackend(),param=params)
+            self.env = grid2op.make(env_name, backend=LightSimBackend(), param=params, test=True)
 
             self.env.set_max_iter(20)
         self.chronic_id = 0
         self.max_iter = 10
-        self.decimal_accuracy = 4 #until how many decimals we check the perfect accuracy
+        self.tol = 3e-5
 
     def tearDown(self) -> None:
         self.env.close()
@@ -77,7 +85,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
 
         p_target_computed = betas[0] * obs1.p_or + betas[1] * obs2.p_or + (1 - betas.sum()) * obs_start.p_or
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed,self.decimal_accuracy ) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_line_disconection_line_reconnection_combination_sup_theorem(self):
         """Testing the compute_flows_superposition_theorem_from_actions function
@@ -114,7 +122,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
         check_obs_target = False
         p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions, check_obs_target)
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_node_merging_splitting_combination_by_hand(self):
         """Testing the combination of one node merging and one node splitting actions at different substations.
@@ -180,7 +188,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
 
         p_target_computed = betas[0] * obs1.p_or + betas[1] * obs2.p_or + (1 - betas.sum()) * obs_start.p_or
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_node_merging_splitting_combination_sup_theorem(self):
         """Testing the compute_flows_superposition_theorem_from_actions function
@@ -219,7 +227,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
         p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions,
                                                                 check_obs_target)
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_line_disconection_node_splitting_combination_by_hand(self):
         """Testing the combination of one node splitting and one line disconnection actions.
@@ -271,7 +279,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
 
         p_target_computed = betas[0] * obs1.p_or + betas[1] * obs2.p_or + (1 - betas.sum()) * obs_start.p_or
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed,self.decimal_accuracy ) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_node_splitting_line_disconnection_combination_sup_theorem(self):
         """Testing the compute_flows_superposition_theorem_from_actions function
@@ -304,7 +312,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
         p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions,
                                                                 check_obs_target)
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_line_reconnection_node_merging_combination_by_hand(self):
         """Testing the combination of one node splitting and one line disconnection actions.
@@ -358,7 +366,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
 
         p_target_computed = betas[0] * obs1.p_or + betas[1] * obs2.p_or + (1 - betas.sum()) * obs_start.p_or
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed,self.decimal_accuracy ) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_line_reconnection_node_merging_combination_sup_theorem(self):
         """Testing the compute_flows_superposition_theorem_from_actions function
@@ -399,7 +407,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
         p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions,
                                                                 check_obs_target)
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_line_reconnection_node_splitting_combination_by_hand(self):
         """Testing the combination of one node splitting and one line reconnection actions.
@@ -458,7 +466,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
 
         p_target_computed = betas[0] * obs1.p_or + betas[1] * obs2.p_or + (1 - betas.sum()) * obs_start.p_or
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed,self.decimal_accuracy ) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_node_splitting_line_reconnection_combination_sup_theorem(self):
         """Testing the compute_flows_superposition_theorem_from_actions function
@@ -496,7 +504,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
         p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions,
                                                                 check_obs_target)
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_line_disconnection_node_merging_combination_by_hand(self):
         """Testing the combination of one node merging and one line disconnection actions.
@@ -550,7 +558,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
 
         p_target_computed = betas[0] * obs1.p_or + betas[1] * obs2.p_or + (1 - betas.sum()) * obs_start.p_or
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed,self.decimal_accuracy ) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_line_disconnection_node_merging_combination_sup_theorem(self):
         """Testing the compute_flows_superposition_theorem_from_actions function
@@ -593,7 +601,7 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
         p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions,
                                                                 check_obs_target)
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol
 
     def test_all_four_action_type_combination_sup_theorem(self):
         """Testing the compute_flows_superposition_theorem_from_actions function
@@ -641,8 +649,10 @@ class TestDiverseActionCombinationSup(unittest.TestCase):
 
         # running superposition theorem function
         check_obs_target = False
-        p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines, idls_subs, obs_start, unitary_actions,
-                                                                check_obs_target)
+        p_target_computed = compute_flows_superposition_theorem_from_actions(idls_lines,
+                                                                             idls_subs,
+                                                                             obs_start,
+                                                                             unitary_actions,
+                                                                             check_obs_target)
 
-        assert (np.all((np.round(obs_target.p_or - p_target_computed, self.decimal_accuracy) == 0.0)))
-
+        assert np.max(np.abs(obs_target.p_or - p_target_computed)) <= self.tol

@@ -21,12 +21,12 @@ pkgs = {
     ]
 }
 
-setup(name='TopologySuperpositionTheorem',
+setup(name='superposition_theorem',
       version='0.0.2',
       description='A package for efficient combinatorial topological actions power flow computation based on the extended superposition theorem for powersystems',
       long_description=long_description,
       long_description_content_type="text/markdown",
-      author='Antoine MAROT',
+      author='MARTO Antoine, DONNOT Benjamin',
       python_requires='>=3.8',
       url="https://github.com/marota/Topology_Superposition_Theorem",
       packages=setuptools.find_packages(),

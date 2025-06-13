@@ -27,9 +27,9 @@ case_names = ["case14",
               "case300", 
               "case1354pegase",
               "case1888rte", "GBnetwork", "case3120sp", "case2848rte", "case2869pegase", 
-            #   "case6495rte", 
-            #   "case6515rte",
-            #   "case9241pegase"
+              "case6495rte", 
+              "case6515rte",
+              "case9241pegase"
              ]
 
 # %%
@@ -281,9 +281,9 @@ for case_nm in tqdm(case_names):
 
 headers = ["Grid",
            "Ext ST",
-           "lightsim2grid",
+           "lightsim2grid (DC)",
            "lightsim2grid (LODF)",
-           "pandapower",
+           "pandapower (DC)",
            "lightsim2grid (AC)",
            "pypowsybl (DC)",
            "pypowsybl (AC)",

@@ -247,6 +247,85 @@ class State(object):
         res += np.matmul(betas, por_unary)    
         return res
     
+    def add_injection_states_grid2op(self,
+                                     obs: "grid2op.Observation.BaseObservation",
+                                     injection_actions: List["grid2op.Action.BaseAction"],
+                                     when_error: Literal["raise", "warn"] = "raise") -> None:
+        """Register unitary injection states for the Generalized Superposition
+        Theorem. Each action (typically a balanced redispatch) is applied *alone*
+        to ``obs`` at the **reference topology**; the resulting flow response
+        ``e_k = obs_inj.p_or - obs_start.p_or`` is later added in pure
+        superposition by :func:`compute_flows_gst`."""
+        if obs._obs_env is None:
+            raise RuntimeError("You cannot build a proper State if the grid2op observation cannot use obs.simulate")
+        states = self._unary_states.get("injection", [])
+        for act in injection_actions:
+            obs_tmp, reward, done, info = obs.simulate(act, time_step=0)
+            if not done:
+                st = CurrentState(self._grid)
+                st.from_grid2op_obs(obs_tmp)
+                states.append(st)
+            else:
+                if when_error == "raise":
+                    raise RuntimeError("Impossible to apply injection action: no feasible solution found.")
+                else:
+                    warnings.warn("Impossible to apply injection action: no feasible solution found.")
+        self._unary_states["injection"] = states
+
+    def compute_flows_gst(self,
+                          *,  # force kwargs
+                          line_ids_disc: List[int] = (),
+                          line_ids_reco: List[int] = ()) -> np.ndarray:
+        """Generalized Superposition Theorem (GST).
+
+        Combine line disconnections and/or reconnections with the injection
+        changes registered via :func:`add_injection_states_grid2op`. The
+        injection states are added in **pure superposition**; the injection
+        enters the topology weights **only through the right-hand side** (a flow
+        / angle ratio on the switched assets), the system matrix being the
+        unchanged Extended Superposition Theorem matrix. With no registered
+        injection state this reduces exactly to the EST. Combine actions of the
+        same kind (all disconnections, or all reconnections); for mixed kinds use
+        :func:`superposition_theorem.core.compute_power_flows.compute_flows_GST_from_unit_act_obs`.
+        """
+        inj_states = self._unary_states.get("injection", [])
+        # aggregate injection flow response e = sum_k (obs_inj_k.p_or - obs_start.p_or)
+        sum_e = np.zeros_like(self._init_state.p_or, dtype=float)
+        for st in inj_states:
+            sum_e = sum_e + (st.p_or - self._init_state.p_or)
+
+        l_disc = np.array(line_ids_disc).astype(int)
+        l_reco = np.array(line_ids_reco).astype(int)
+        n = l_disc.size + l_reco.size
+        A = np.zeros((n, n))
+        por_unary = np.zeros((n, self._init_state.p_or.shape[0]))
+        b = np.zeros(n)
+        start_id = 0
+        if l_disc.size:
+            tmp = self._fill_A_disco_lines(A, l_disc, start_id, key="line_disco")
+            por_unary[start_id:start_id + l_disc.size, :] = tmp
+            for a_i, lid in enumerate(l_disc):
+                pf_start = self._init_state.p_or[lid]
+                b[start_id + a_i] = (pf_start + sum_e[lid]) / pf_start  # flow ratio
+            start_id += l_disc.size
+        if l_reco.size:
+            self._fill_A_reco_lines(A, l_reco, start_id, key="line_reco")
+            por_unary[start_id:start_id + l_reco.size, :] = np.array(
+                [self._unary_states["line_reco"][lid].p_or for lid in l_reco])
+            for a_i, lid in enumerate(l_reco):
+                dth_start = self._init_state.delta_theta[lid]
+                dth_e = 0.0
+                for st in inj_states:
+                    dth_e += (st.delta_theta[lid] - dth_start)
+                b[start_id + a_i] = (dth_start + dth_e) / dth_start  # angle ratio
+            start_id += l_reco.size
+        np.fill_diagonal(A, 1)
+        betas = np.linalg.solve(A, b)
+        res = (1 - betas.sum()) * self._init_state.p_or
+        res += np.matmul(betas, por_unary)
+        res += sum_e
+        return res
+    
     def compute_flows(self,
                       *,  # force kwargs
                       line_ids_disc : List[int] = (),

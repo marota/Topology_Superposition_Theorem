@@ -9,6 +9,7 @@
 import grid2op
 import numpy as np
 from superposition_theorem.core.compute_beta_coefficients import get_betas_coeff_N_unit_acts_ultimate
+from superposition_theorem.core.compute_beta_coefficients import get_betas_coeff_GST
 
 
 #so pVirtual_l1=por_Lconnected_l1+(DeltaPVirtual_l2*LODF2->1+DeltaPVirtual_l1*LODF3->1)
@@ -179,6 +180,161 @@ def compute_flows_superposition_theorem_from_unit_act_obs(idls_lines,
     for i in range(n_actions):
         p_or_combined_action += betas[i] * unit_act_observations[i].p_or
 
+    return p_or_combined_action
+
+
+def _sub_virtual_sensitivities(obs, idls_subs, ind_subs, is_start_reference_sub_topo):
+    """Virtual-line sensitivities of each substation action on observation ``obs``.
+
+    For a **node split** (reference topology is meshed) the substation behaves
+    like a line disconnection: its sensitivity is the virtual-line flow
+    (the net injection at node 1), evaluated with the node-1 element ids
+    ``ind_subs`` derived from the split unitary observation. For a **node merge**
+    (reference topology is already split) it behaves like a reconnection: its
+    sensitivity is the angle difference between the two nodes.
+
+    Returns two arrays (``p_or_v``, ``delta_theta_v``) of length ``len(idls_subs)``,
+    matching the convention of :func:`get_betas_coeff_GST` (flow used when the
+    reference flow is non-zero, angle otherwise).
+    """
+    p_or_v = []
+    dth_v = []
+    for i, sub in enumerate(idls_subs):
+        if is_start_reference_sub_topo[i]:
+            # split: reference is meshed -> virtual-line flow (like a disconnection)
+            ind_load, ind_prod, ind_lor, ind_lex = ind_subs[i]
+            p_or_v.append(get_virtual_line_flow(obs, ind_load, ind_prod, ind_lor, ind_lex))
+            dth_v.append(0.0)
+        else:
+            # merge: reference is split -> angle across the two nodes (like a reconnection)
+            p_or_v.append(0.0)
+            dth_v.append(get_delta_theta_sub_2nodes(obs, sub))
+    return np.array(p_or_v, dtype=float), np.array(dth_v, dtype=float)
+
+
+def compute_flows_GST_from_unit_act_obs(idls_lines,
+                                        obs_start,
+                                        unit_act_observations,
+                                        injection_observations,
+                                        idls_subs=(),
+                                        return_betas=False,
+                                        verbose=False):
+    """
+    Generalized Superposition Theorem (GST): compute the flows of a target state
+    that combines **topological changes** and an **injection change**, using only
+    states available at the *reference* topology.
+
+    This is the injection-aware counterpart of
+    :func:`compute_flows_superposition_theorem_from_unit_act_obs`. The injection
+    unitary states are observations at the *reference* topology where only the
+    injection has changed (e.g. a balanced redispatch). Their flow responses
+    ``e_k = obs_inj.p_or - obs_start.p_or`` are added in **pure superposition**,
+    while the injection enters the topology weights **only through the right-hand
+    side** of the (unchanged) EST linear system (see
+    :func:`get_betas_coeff_GST`). Formally
+
+        PF(P_tgt, T_tgt) = alpha * obs_start.p_or
+                           + sum_i beta^i * unit_act_observations[i].p_or
+                           + sum_k (obs_inj_k.p_or - obs_start.p_or)
+
+    with ``alpha = 1 - sum_i beta^i`` and the ``beta^i`` solving the EST matrix
+    with right-hand side ``x_l(P_tgt, T_ref) / x_l(P_ref, T_ref)`` on the
+    switched assets. Setting ``injection_observations = []`` recovers the EST.
+
+    Parameters
+    ----------
+    idls_lines : `list`:int
+        Grid line ids of the (disconnection / reconnection) topology actions.
+    obs_start : grid2op.Observation
+        Reference observation ``(P_ref, T_ref)``.
+    unit_act_observations : `list`:grid2op.Observation
+        One observation per topology unitary action, applied alone to obs_start.
+    injection_observations : `list`:grid2op.Observation
+        One observation per unitary injection change, applied alone to obs_start
+        at the reference topology.
+    idls_subs : `list`:int
+        Substation ids for node split / merge actions. A substation action is
+        handled through its *virtual line* (exactly as in the EST): node split
+        behaves like a line disconnection (virtual-flow ratio), node merge like a
+        line reconnection (virtual-angle ratio). The injection shifts these
+        virtual sensitivities just like real-line ones. As in
+        :func:`compute_flows_superposition_theorem_from_unit_act_obs`, the
+        ``unit_act_observations`` must be ordered *lines first, then subs*, and
+        ``idls = idls_lines + idls_subs``.
+
+    Returns
+    -------
+    p_or_combined_action : `np.array`, dim n_lines
+        Active power flows of the combined (injection + topology) target state.
+        If ``return_betas`` is True, also returns ``(alpha, betas)``.
+    """
+    idls_lines = list(idls_lines)
+    idls_subs = list(idls_subs)
+    n_line = len(idls_lines)
+    n_sub = len(idls_subs)
+    n = n_line + n_sub
+
+    # --- reference-injection sensitivities on the switched LINES (EST matrix) ----
+    p_or_unit_lines = np.array([[obs.p_or[lj] for lj in idls_lines] for obs in unit_act_observations])
+    dth_unit_lines = np.array([[get_delta_theta_line(obs, lj) for lj in idls_lines] for obs in unit_act_observations])
+    p_or_start_lines = np.array([obs_start.p_or[lj] for lj in idls_lines], dtype=float)
+    dth_start_lines = np.array([get_delta_theta_line(obs_start, lj) for lj in idls_lines], dtype=float)
+
+    if n_sub:
+        # expand the matrix data with the substation VIRTUAL LINES (reuse the EST
+        # helpers; obs_target=None so only obs_start + unit_act rows are built)
+        dth_unit, dth_start, _ = expand_por_lines_with_sub_virtual_line_delta_theta(
+            idls_subs, unit_act_observations, obs_start, None,
+            dth_unit_lines, dth_start_lines, None)
+        p_or_unit, p_or_start, _ = expand_por_lines_with_sub_virtual_line_flow(
+            idls_subs, unit_act_observations, obs_start, None,
+            p_or_unit_lines, p_or_start_lines, None)
+        # node-1 element ids (from the split/merge unitary observations) and the
+        # reference-topology flag for each substation, to evaluate virtual
+        # sensitivities at obs_start and at the injection observations
+        is_ref_sub = [not (2 in obs_start.sub_topology(s)) for s in idls_subs]
+        ind_subs = [get_sub_node1_idsflow(obs, sub_id)
+                    for obs, sub_id in zip(unit_act_observations[-n_sub:], idls_subs)]
+    else:
+        p_or_unit, p_or_start = p_or_unit_lines, p_or_start_lines
+        dth_unit, dth_start = dth_unit_lines, dth_start_lines
+
+    # --- target-injection sensitivities on the switched assets, in T_ref ----------
+    #     standard ST: x(P_tgt, T_ref) = x(P_ref, T_ref) + sum_k [x(P_ref+dP^k) - x(P_ref)]
+    p_or_tgt_lines = p_or_start_lines.copy()
+    dth_tgt_lines = dth_start_lines.copy()
+    for obs_inj in injection_observations:
+        p_or_tgt_lines = p_or_tgt_lines + (np.array([obs_inj.p_or[lj] for lj in idls_lines], dtype=float) - p_or_start_lines)
+        dth_tgt_lines = dth_tgt_lines + (np.array([get_delta_theta_line(obs_inj, lj) for lj in idls_lines], dtype=float) - dth_start_lines)
+
+    if n_sub:
+        p_or_v_start, dth_v_start = _sub_virtual_sensitivities(obs_start, idls_subs, ind_subs, is_ref_sub)
+        p_or_v_tgt = p_or_v_start.copy()
+        dth_v_tgt = dth_v_start.copy()
+        for obs_inj in injection_observations:
+            p_or_v_inj, dth_v_inj = _sub_virtual_sensitivities(obs_inj, idls_subs, ind_subs, is_ref_sub)
+            p_or_v_tgt = p_or_v_tgt + (p_or_v_inj - p_or_v_start)
+            dth_v_tgt = dth_v_tgt + (dth_v_inj - dth_v_start)
+        p_or_tgt = np.append(p_or_tgt_lines, p_or_v_tgt)
+        dth_tgt = np.append(dth_tgt_lines, dth_v_tgt)
+    else:
+        p_or_tgt = p_or_tgt_lines
+        dth_tgt = dth_tgt_lines
+
+    # --- GST betas: identical EST matrix, injection-shifted right-hand side -------
+    idls = idls_lines + idls_subs
+    betas = get_betas_coeff_GST(dth_unit, dth_start, p_or_unit, p_or_start,
+                                p_or_tgt, dth_tgt, idls, verbose=verbose)
+
+    # --- reconstruction: affine topology part + pure-superposition injection part -
+    p_or_combined_action = (1 - np.sum(betas)) * obs_start.p_or
+    for i in range(n):
+        p_or_combined_action = p_or_combined_action + betas[i] * unit_act_observations[i].p_or
+    for obs_inj in injection_observations:
+        p_or_combined_action = p_or_combined_action + (obs_inj.p_or - obs_start.p_or)
+
+    if return_betas:
+        return p_or_combined_action, (1 - np.sum(betas)), betas
     return p_or_combined_action
 
 

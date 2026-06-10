@@ -80,6 +80,75 @@ def get_betas_coeff_N_unit_acts_ultimate(delta_theta_connect_idls : List[Tuple[i
     return betas
 
 
+def get_betas_coeff_GST(delta_theta_connect_idls,
+                        delta_theta_obs_start,
+                        p_or_connect_idls,
+                        p_or_obs_start,
+                        p_or_obs_target,
+                        delta_theta_obs_target,
+                        idls,
+                        verbose=False):
+    """
+    Generalized Superposition Theorem (GST) coefficients for combined
+    *injection + topology* changes.
+
+    The system **matrix is identical** to the one of
+    :func:`get_betas_coeff_N_unit_acts_ultimate` (the Extended Superposition
+    Theorem matrix, evaluated at the *reference* injection). The injection
+    change enters **only the right-hand side**: instead of ``b = 1``, each entry
+    is the ratio of the target-injection sensitivity to the reference one on the
+    corresponding switched asset, evaluated *in the reference topology*
+
+        b_j = x_j(P_tgt, T_ref) / x_j(P_ref, T_ref)
+
+    with ``x = p_or`` for disconnection / split assets (non-zero reference flow)
+    and ``x = delta_theta`` for reconnection / merge assets (zero reference
+    flow). This is the linear system of the companion paper's Theorem 1: the
+    matrix is injection-independent (so it can be factored once and reused across
+    injection scenarios) and ``b = 1`` recovers the EST exactly.
+
+    The target-injection sensitivities are obtained by the standard
+    superposition theorem at the reference topology, i.e.
+    ``x_j(P_tgt, T_ref) = x_j(P_ref, T_ref) + sum_k x_j(dP^k, T_ref)``.
+
+    Parameters
+    ----------
+    delta_theta_connect_idls, delta_theta_obs_start, p_or_connect_idls, p_or_obs_start
+        Same arrays as :func:`get_betas_coeff_N_unit_acts_ultimate`; they build
+        the (reference-injection) system matrix.
+    p_or_obs_target, delta_theta_obs_target : :class:`numpy.ndarray`
+        Per-asset flow / angle at the **target injection** in the reference
+        topology, on each switched asset (dim ``n_unitary_actions``).
+    idls : list
+        Switched assets (grid lines or virtual lines).
+
+    Returns
+    -------
+    betas : :class:`numpy.ndarray`
+        The GST topology coefficients ``beta^i`` (the reference state then takes
+        ``alpha = 1 - sum_i beta^i``).
+    """
+    n = len(idls)
+    a = np.array([[1 - p_or_connect_idls[i][j] / p_or_obs_start[j] if (
+                (p_or_connect_idls[i][j] != 0) and (p_or_obs_start[j])) else
+                   1 - delta_theta_connect_idls[i][j] / delta_theta_obs_start[j]
+                   for i in range(n)] for j in range(n)])
+    np.fill_diagonal(a, 1)
+    # injection-shifted right-hand side: flow ratio on disconnected/split assets,
+    # angle ratio on reconnected/merged assets (those have zero reference flow)
+    b = np.array([p_or_obs_target[j] / p_or_obs_start[j] if (
+                (p_or_obs_start[j] is not None) and (p_or_obs_start[j] != 0)) else
+                  delta_theta_obs_target[j] / delta_theta_obs_start[j]
+                  for j in range(n)])
+    if verbose:
+        print("GST system matrix a (reference injection):\n" + str(a))
+        print("GST right-hand side b (target/reference flow ratio): " + str(b))
+    betas = np.linalg.solve(a, b)
+    if verbose:
+        print("computed GST betas: " + str(betas))
+    return betas
+
+
 # old functions using LODF matrix, still useful for demonstrations
 def get_betas_coeff_N2_reconnect(id_l1, id_l2, delta_theta_line_start, delta_theta_line_unit_acts, env, verbose=False):
     init_obs, *_ = env.simulate(env.action_space())
